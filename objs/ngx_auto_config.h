@@ -1,12 +1,7 @@
-#define NGX_CONFIGURE " --with-debug"
-
-#ifndef NGX_DEBUG
-#define NGX_DEBUG  1
-#endif
-
+#define NGX_CONFIGURE " --add-module=src/test/mytest"
 
 #ifndef NGX_COMPILER
-#define NGX_COMPILER  "gcc 4.8.5 20150623 (Red Hat 4.8.5-36) (GCC) "
+#define NGX_COMPILER  "gcc 7.4.0 (Ubuntu 7.4.0-1ubuntu1~18.04.1) "
 #endif
 
 
@@ -42,6 +37,11 @@
 
 #ifndef NGX_HAVE_EPOLLRDHUP
 #define NGX_HAVE_EPOLLRDHUP  1
+#endif
+
+
+#ifndef NGX_HAVE_EPOLLEXCLUSIVE
+#define NGX_HAVE_EPOLLEXCLUSIVE  1
 #endif
 
 
@@ -140,6 +140,11 @@
 
 #ifndef NGX_HAVE_TRANSPARENT_PROXY
 #define NGX_HAVE_TRANSPARENT_PROXY  1
+#endif
+
+
+#ifndef NGX_HAVE_IP_BIND_ADDRESS_NO_PORT
+#define NGX_HAVE_IP_BIND_ADDRESS_NO_PORT  1
 #endif
 
 
@@ -479,6 +484,6 @@
 
 
 #ifndef NGX_GROUP
-#define NGX_GROUP  "nobody"
+#define NGX_GROUP  "nogroup"
 #endif
 

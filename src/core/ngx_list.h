@@ -16,18 +16,18 @@
 typedef struct ngx_list_part_s  ngx_list_part_t;
 
 struct ngx_list_part_s {
-    void             *elts;
-    ngx_uint_t        nelts;
-    ngx_list_part_t  *next;
+    void             *elts;   // 数组地址
+    ngx_uint_t        nelts;  // 使用计数
+    ngx_list_part_t  *next;   // 串联下一个
 };
 
 
 typedef struct {
-    ngx_list_part_t  *last;
-    ngx_list_part_t   part;
-    size_t            size;
-    ngx_uint_t        nalloc;
-    ngx_pool_t       *pool;
+    ngx_list_part_t  *last;   // 最后一个节点指针
+    ngx_list_part_t   part;   // 首节点
+    size_t            size;   // 每个节点 数组的大小
+    ngx_uint_t        nalloc; // 每个节点 数组的个数
+    ngx_pool_t       *pool;   // 申请内存的地方
 } ngx_list_t;
 
 
