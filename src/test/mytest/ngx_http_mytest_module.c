@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "ngx_http.h"
+#include "ngx_log.h"
 
 typedef struct {
 	ngx_str_t my_str;
@@ -18,8 +19,28 @@ typedef struct {
 	ngx_path_t *my_path;
 } ngx_http_mytest_conf_t;
 
+static ngx_conf_enum_t test_enums[] = {
+	{ ngx_string("apple"), 1 },
+	{ ngx_string("banana"), 2 },
+	{ ngx_string("orange"), 3 },
+	{ ngx_null_string, 0 }
+};
+
+static ngx_conf_bitmask_t test_bitmasks[] = {
+	{ ngx_string("good"), 0x0002 },
+	{ ngx_string("better"), 0x0004 },
+	{ ngx_string("best"), 0x0008 },
+	{ ngx_null_string, 0 }
+};
+
 static char *ngx_http_mytest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r);
+
+//static void* ngx_http_mytest_create_main_conf(ngx_conf_t *cf);
+//static void* ngx_http_mytest_create_srv_conf(ngx_conf_t *cf);
+static void* ngx_http_mytest_create_loc_conf(ngx_conf_t *cf);
+//static char *ngx_http_mytest_merge_loc_conf(ngx_conf_t *cf, void *prev, void *conf);
+
 
 static ngx_command_t ngx_http_mytest_commands[] = {
 
@@ -32,13 +53,144 @@ static ngx_command_t ngx_http_mytest_commands[] = {
 		NULL
 	},
 
+	{
+		ngx_string("test_flag"),
+		NGX_HTTP_MAIN_CONF|NGX_CONF_FLAG,
+		ngx_conf_set_flag_slot,
+		NGX_HTTP_LOC_CONF_OFFSET,
+		offsetof(ngx_http_mytest_conf_t, my_flag),
+		NULL
+	},
+
+	{
+		ngx_string("test_str"),
+		NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+		ngx_conf_set_str_slot,
+		NGX_HTTP_LOC_CONF_OFFSET,
+		offsetof(ngx_http_mytest_conf_t, my_str),
+		NULL
+	},
+
+	{
+		ngx_string("test_str_array"),
+		NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+		ngx_conf_set_str_array_slot,
+		NGX_HTTP_LOC_CONF_OFFSET,
+		offsetof(ngx_http_mytest_conf_t, my_str_array),
+		NULL
+	},
+
+	{
+		ngx_string("test_keyval"),
+		NGX_HTTP_LOC_CONF|NGX_CONF_TAKE2,
+		ngx_conf_set_keyval_slot,
+		NGX_HTTP_LOC_CONF_OFFSET,
+		offsetof(ngx_http_mytest_conf_t, my_keyval),
+		NULL
+	},
+
+	{
+		ngx_string("test_num"),
+		NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+		ngx_conf_set_num_slot,
+		NGX_HTTP_LOC_CONF_OFFSET,
+		offsetof(ngx_http_mytest_conf_t, my_num),
+		NULL
+	},
+
+	{
+		ngx_string("test_size"),
+		NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+		ngx_conf_set_size_slot,
+		NGX_HTTP_LOC_CONF_OFFSET,
+		offsetof(ngx_http_mytest_conf_t, my_size),
+		NULL
+	},
+
+	{
+		ngx_string("test_off"),
+		NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+		ngx_conf_set_off_slot,
+		NGX_HTTP_LOC_CONF_OFFSET,
+		offsetof(ngx_http_mytest_conf_t, my_off),
+		NULL
+	},
+
+	{
+		ngx_string("test_msec"),
+		NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+		ngx_conf_set_msec_slot,
+		NGX_HTTP_LOC_CONF_OFFSET,
+		offsetof(ngx_http_mytest_conf_t, my_msec),
+		NULL
+	},
+
+	{
+		ngx_string("test_sec"),
+		NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+		ngx_conf_set_sec_slot,
+		NGX_HTTP_LOC_CONF_OFFSET,
+		offsetof(ngx_http_mytest_conf_t, my_sec),
+		NULL
+	},
+
+	{
+		ngx_string("test_bufs"),
+		NGX_HTTP_LOC_CONF|NGX_CONF_TAKE2,
+		ngx_conf_set_bufs_slot,
+		NGX_HTTP_LOC_CONF_OFFSET,
+		offsetof(ngx_http_mytest_conf_t, my_bufs),
+		NULL
+	},
+
+	{
+		ngx_string("test_enum"),
+		NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+		ngx_conf_set_enum_slot,
+		NGX_HTTP_LOC_CONF_OFFSET,
+		offsetof(ngx_http_mytest_conf_t, my_enum_seq),
+		test_enums
+	},
+
+	{
+		ngx_string("test_bitmask"),
+		NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+		ngx_conf_set_bitmask_slot,
+		NGX_HTTP_LOC_CONF_OFFSET,
+		offsetof(ngx_http_mytest_conf_t, my_bitmask),
+		test_bitmasks
+	},
+
+	{
+		ngx_string("test_access"),
+		NGX_HTTP_LOC_CONF|NGX_CONF_TAKE123,
+		ngx_conf_set_access_slot,
+		NGX_HTTP_LOC_CONF_OFFSET,
+		offsetof(ngx_http_mytest_conf_t, my_access),
+		NULL
+	},
+
+	{
+		ngx_string("test_path"),
+		NGX_HTTP_LOC_CONF|NGX_CONF_TAKE123,
+		ngx_conf_set_path_slot,
+		NGX_HTTP_LOC_CONF_OFFSET,
+		offsetof(ngx_http_mytest_conf_t, my_path),
+		NULL
+	},
+
 	ngx_null_command,
 };
 
 static ngx_http_module_t ngx_http_mytest_module_ctx = {
-
-NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
-
+	NULL, 
+	NULL,
+	NULL, //ngx_http_mytest_create_main_conf, 
+	NULL, 
+	NULL, //ngx_http_mytest_create_srv_conf, 
+	NULL, 
+	ngx_http_mytest_create_loc_conf, 
+	NULL, //ngx_http_mytest_merge_loc_conf
 };
 
 ngx_module_t ngx_http_mytest_module = {
@@ -55,6 +207,57 @@ ngx_module_t ngx_http_mytest_module = {
 	NULL,
 	NGX_MODULE_V1_PADDING
 };
+
+/*
+static void* ngx_http_mytest_create_main_conf(ngx_conf_t *cf) {
+	printf("main\n");
+
+	ngx_http_mytest_conf_t *mycf;
+	mycf = (ngx_http_mytest_conf_t *)ngx_pcalloc(cf->pool, sizeof(ngx_http_mytest_conf_t));
+	if (mycf == NULL) {
+		return NULL;
+	}
+	
+	return mycf;
+}
+
+static void* ngx_http_mytest_create_srv_conf(ngx_conf_t *cf) {
+	printf("srv\n");
+
+	ngx_http_mytest_conf_t *mycf;
+	mycf = (ngx_http_mytest_conf_t *)ngx_pcalloc(cf->pool, sizeof(ngx_http_mytest_conf_t));
+	if (mycf == NULL) {
+		return NULL;
+	}
+	return mycf;
+} */
+
+static void *ngx_http_mytest_create_loc_conf(ngx_conf_t * cf) {
+	ngx_http_mytest_conf_t *mycf;
+	mycf = (ngx_http_mytest_conf_t *)ngx_pcalloc(cf->pool, sizeof(ngx_http_mytest_conf_t));
+	if (mycf == NULL) {
+		return NULL;
+	}
+
+	mycf->my_flag = NGX_CONF_UNSET;
+	mycf->my_num = NGX_CONF_UNSET;
+	mycf->my_str_array = NGX_CONF_UNSET_PTR;
+	mycf->my_keyval = NULL;
+	mycf->my_off = NGX_CONF_UNSET;
+	mycf->my_msec = NGX_CONF_UNSET_MSEC;
+	mycf->my_sec = NGX_CONF_UNSET;
+	mycf->my_size = NGX_CONF_UNSET_SIZE;
+
+	printf("loc\n");
+	ngx_log_error(NGX_LOG_ERR, cf->log, 0, "create location config");
+	return mycf;
+}
+
+/*static char *ngx_http_mytest_merge_loc_conf(ngx_conf_t *cf, void *prev, void *conf) {
+	printf("merge\n");
+	
+	return "haha";
+}*/
 
 static char* ngx_http_mytest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
 
