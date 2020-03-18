@@ -131,7 +131,7 @@ static ngx_int_t ngx_http_mytest_upstream_create_request(ngx_http_request_t *r) 
 	// QueryLine中的%V等转化格式的用法，可参见
 	// static ngx_str_t backendQueryLine = ngx_string("GET /s?wd=%V HTTP/1.1\r\nHOST: www.baidu.com\r\nConnection: close\r\n\r\n");
 	// ngx_int_t queryLineLen = backendQueryLine.len + r->args.len - 2;
-	static ngx_str_t backendQueryLine = ngx_string("GET /index HTTP/1.1\r\nHOST: 192.168.2.108\r\nConnection: close\r\n\r\n");
+	static ngx_str_t backendQueryLine = ngx_string("GET /index.html HTTP/1.1\r\nHOST: 127.0.0.1\r\nConnection: close\r\n\r\n");
 	ngx_int_t queryLineLen = backendQueryLine.len;
 
 	// 必须在内存池中申请内存，这有两点好处：一个好处是，在网络情况不佳的情况下，向上游服务器发送请求
@@ -320,6 +320,11 @@ static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r) {
 	ngx_http_mytest_ctx_t *myctx = ngx_http_get_module_ctx(r, ngx_http_mytest_module);
 	if (myctx == NULL) {
 		myctx = ngx_palloc(r->pool, sizeof(ngx_http_mytest_ctx_t));
+
+		if (myctx == NULL) {
+			return NGX_ERROR;
+		}
+		
 		if (myctx == NULL) {
 			return NGX_ERROR;
 		}
@@ -355,7 +360,7 @@ static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r) {
 	// 这里的上游服务器就是www.baidu.com
 	static struct sockaddr_in backendSockAddr;
 	// struct hostent *pHost = gethostbyname((char *)"www.baidu.com");
-	struct hostent *pHost = gethostbyname((char *)"http://192.168.2.108/");
+	struct hostent *pHost = gethostbyname((char *)"127.0.0.1");
 	if (pHost == NULL) {
 		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "gethostbyname failed. %s", strerror(errno));
 		return NGX_ERROR;
