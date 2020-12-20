@@ -17,29 +17,35 @@ typedef void *            ngx_buf_tag_t;
 
 typedef struct ngx_buf_s  ngx_buf_t;
 
+/*
+	缓冲结构: 可以指向内存和文件
+*/
 struct ngx_buf_s {
-    u_char          *pos;
-    u_char          *last;
-    off_t            file_pos;
-    off_t            file_last;
+    u_char          *pos;           // buf的开始指针,这个是会变的,和start不同
+    u_char          *last;          // buf的结束指针,这个也是会变的,和end不同
+    off_t            file_pos;      // 如果缓冲区指向的是文件,代表文件的开始
+    off_t            file_last;     // 如果缓冲区指向的是文件,代表文件的结束
 
-    u_char          *start;         /* start of buffer */
-    u_char          *end;           /* end of buffer */
-    ngx_buf_tag_t    tag;
-    ngx_file_t      *file;
+    u_char          *start;         // buf的开始指针,用于释放
+    u_char          *end;           // buf的结束指针,用于标识
+    ngx_buf_tag_t    tag;           // 未知
+    ngx_file_t      *file;          // 文件缓存句柄
     ngx_buf_t       *shadow;
 
 
     /* the buf's content could be changed */
+    // 缓存会更改
     unsigned         temporary:1;
 
     /*
      * the buf's content is in a memory cache or in a read only memory
      * and must not be changed
      */
+    // 在内存中
     unsigned         memory:1;
 
     /* the buf's content is mmap()ed and must not be changed */
+    // 是否mmap
     unsigned         mmap:1;
 
     unsigned         recycled:1;

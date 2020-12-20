@@ -222,6 +222,21 @@ ngx_main_link=${MAIN_LINK:+`echo $MAIN_LINK \
     | sed -e "s/\//$ngx_regex_dirsep/g" -e "s/^/$ngx_long_regex_cont/"`}
 
 
+######### custom test ############
+mkdir -p $NGX_OBJS/test/ >/dev/null 2>&1
+mkdir -p $NGX_OBJS/src/test/ >/dev/null 2>&1
+
+test_modules="ngx_pool_test ngx_array_test "
+for test_module in $test_modules
+do
+test_deps="objs/src/test/${test_module}.o$ngx_long_cont$ngx_deps"
+
+cat << END                                                    >> $NGX_MAKEFILE
+$NGX_OBJS/${test_module}: $test_deps$ngx_spacer 
+	\$(LINK) $ngx_long_start$ngx_binout$NGX_OBJS${ngx_dirsep}${test_module}$ngx_binext$ngx_long_cont$test_deps$ngx_libs$ngx_link$ngx_main_link
+END
+done
+
 cat << END                                                    >> $NGX_MAKEFILE
 
 build:	binary modules manpage
@@ -235,7 +250,6 @@ $ngx_long_end
 
 modules:
 END
-
 
 # ngx_modules.c
 
@@ -251,6 +265,18 @@ $ngx_modules_obj:	\$(CORE_DEPS)$ngx_cont$ngx_modules_c
 	$ngx_cc$ngx_tab$ngx_objout$ngx_modules_obj$ngx_tab$ngx_modules_c$NGX_AUX
 
 END
+
+######### custom test ############
+TEST_SRCS="src/test/ngx_pool_test src/test/ngx_array_test "
+for ngx_src in $TEST_SRCS
+do
+ngx_obj=objs/${ngx_src}.o
+cat << END                                                >> $NGX_MAKEFILE
+objs/${ngx_src}.o:	\$(CORE_DEPS)$ngx_cont${ngx_src}.c
+	$ngx_cc$ngx_tab$ngx_objout$ngx_obj$ngx_tab${ngx_src}.c$NGX_AUX
+END
+
+done
 
 
 # the core sources

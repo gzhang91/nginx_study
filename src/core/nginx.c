@@ -190,9 +190,12 @@ static char        *ngx_signal;
 
 static char **ngx_os_environ;
 
+//#ifndef TEST
+// #define ngx_main main
+//#endif
 
 int ngx_cdecl
-main(int argc, char *const *argv)
+ngx_main(int argc, char *const *argv)
 {
     ngx_buf_t        *b;
     ngx_log_t        *log;

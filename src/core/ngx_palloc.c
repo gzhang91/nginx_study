@@ -428,3 +428,42 @@ ngx_get_cached_block(size_t size)
 }
 
 #endif
+
+void ngx_pool_show_info(ngx_pool_t *p) {
+	if (!p) {
+		return;
+	}
+
+	ngx_pool_t *curr = p;
+
+	// 打印小尺寸的内存池节点
+	int idx = 0;
+	printf("small-> \n");
+	printf("	current: %p\n", curr->current);
+	while (curr) {
+		printf("	node: %d\n", idx);
+		printf("	addr: %p\n", curr);
+		printf("	avail start: %p\n", curr->d.last);
+		printf("	avail end: %p\n", curr->d.end);
+		printf("	failed: %lu\n", curr->d.failed);
+
+		idx++;
+		curr = curr->d.next;
+	}
+
+	// 打印大尺寸的内存节点
+	ngx_pool_large_t *large_curr = p->large;
+	printf("large-> \n");
+	idx = 0;
+	while (large_curr) {
+		printf("	large node: %d\n", idx);
+		printf("	addr: %p\n", large_curr);
+		printf("	avail start: %p\n", large_curr->alloc);
+
+		idx++;
+		large_curr = large_curr->next;
+	}
+	printf("\n");
+}
+
+
