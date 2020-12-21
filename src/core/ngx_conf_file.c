@@ -58,7 +58,9 @@ static ngx_uint_t argument_number[] = {
     NGX_CONF_TAKE7
 };
 
-
+/*
+	解析配置文件
+*/
 char *
 ngx_conf_param(ngx_conf_t *cf)
 {
@@ -66,7 +68,7 @@ ngx_conf_param(ngx_conf_t *cf)
     ngx_str_t        *param;
     ngx_buf_t         b;
     ngx_conf_file_t   conf_file;
-
+	// 参数param
     param = &cf->cycle->conf_param;
 
     if (param->len == 0) {
@@ -76,7 +78,7 @@ ngx_conf_param(ngx_conf_t *cf)
     ngx_memzero(&conf_file, sizeof(ngx_conf_file_t));
 
     ngx_memzero(&b, sizeof(ngx_buf_t));
-
+	// buf 引用某一段数据
     b.start = param->data;
     b.pos = param->data;
     b.last = param->data + param->len;
@@ -107,28 +109,28 @@ ngx_conf_add_dump(ngx_conf_t *cf, ngx_str_t *filename)
     ngx_buf_t        *buf;
     ngx_str_node_t   *sn;
     ngx_conf_dump_t  *cd;
-
+	// 根据filename计算出hash值
     hash = ngx_crc32_long(filename->data, filename->len);
-
+	// 在config_dump_rbtree红黑树中查找filename是否存在
     sn = ngx_str_rbtree_lookup(&cf->cycle->config_dump_rbtree, filename, hash);
 
     if (sn) {
         cf->conf_file->dump = NULL;
         return NGX_OK;
     }
-
+	// 从pool内存池中申请filename内存长度内存
     p = ngx_pstrdup(cf->cycle->pool, filename);
     if (p == NULL) {
         return NGX_ERROR;
     }
-
+	// ngx_conf_dump_t数组
     cd = ngx_array_push(&cf->cycle->config_dump);
     if (cd == NULL) {
         return NGX_ERROR;
     }
-
+	// struct stat结构体大小
     size = ngx_file_size(&cf->conf_file->file.info);
-
+	// 申请size大小的buf大小
     buf = ngx_create_temp_buf(cf->cycle->pool, (size_t) size);
     if (buf == NULL) {
         return NGX_ERROR;
@@ -147,7 +149,7 @@ ngx_conf_add_dump(ngx_conf_t *cf, ngx_str_t *filename)
 
     sn->node.key = hash;
     sn->str = cd->name;
-
+	// 将node插入到红黑树中
     ngx_rbtree_insert(&cf->cycle->config_dump_rbtree, &sn->node);
 
     return NGX_OK;
@@ -172,11 +174,11 @@ ngx_conf_parse(ngx_conf_t *cf, ngx_str_t *filename)
     fd = NGX_INVALID_FILE;
     prev = NULL;
 #endif
-
+	// 解析文件
     if (filename) {
 
         /* open configuration file */
-
+		// 打开配置文件
         fd = ngx_open_file(filename->data, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
 
         if (fd == NGX_INVALID_FILE) {
@@ -189,7 +191,7 @@ ngx_conf_parse(ngx_conf_t *cf, ngx_str_t *filename)
         prev = cf->conf_file;
 
         cf->conf_file = &conf_file;
-
+		// 获取stat文件信息
         if (ngx_fd_info(fd, &cf->conf_file->file.info) == NGX_FILE_ERROR) {
             ngx_log_error(NGX_LOG_EMERG, cf->log, ngx_errno,
                           ngx_fd_info_n " \"%s\" failed", filename->data);
@@ -206,7 +208,7 @@ ngx_conf_parse(ngx_conf_t *cf, ngx_str_t *filename)
         buf.last = buf.start;
         buf.end = buf.last + NGX_CONF_BUFFER;
         buf.temporary = 1;
-
+		// 配置文件
         cf->conf_file->file.fd = fd;
         cf->conf_file->file.name.len = filename->len;
         cf->conf_file->file.name.data = filename->data;
@@ -231,10 +233,11 @@ ngx_conf_parse(ngx_conf_t *cf, ngx_str_t *filename)
         }
 
     } else if (cf->conf_file->file.fd != NGX_INVALID_FILE) {
-
+	// 解析块
         type = parse_block;
 
     } else {
+    // 解析参数 -g选项
         type = parse_param;
     }
 
@@ -529,7 +532,7 @@ ngx_conf_read_token(ngx_conf_t *cf)
     file_size = ngx_file_size(&cf->conf_file->file.info);
 
     for ( ;; ) {
-
+		// pos当前buf中指针 是否 超过当前buf中指针last
         if (b->pos >= b->last) {
 
             if (cf->conf_file->file.offset >= file_size) {
@@ -585,7 +588,7 @@ ngx_conf_read_token(ngx_conf_t *cf)
             if (size > b->end - (b->start + len)) {
                 size = b->end - (b->start + len);
             }
-
+			// 从file中读取size大小字节
             n = ngx_read_file(&cf->conf_file->file, b->start + len, size,
                               cf->conf_file->file.offset);
 
@@ -611,7 +614,7 @@ ngx_conf_read_token(ngx_conf_t *cf)
         }
 
         ch = *b->pos++;
-
+		// 如果ch=LF,sharp_comment=1,代表一行是注释行
         if (ch == LF) {
             cf->conf_file->line++;
 
@@ -623,27 +626,28 @@ ngx_conf_read_token(ngx_conf_t *cf)
         if (sharp_comment) {
             continue;
         }
-
+		// 判断是否为'\\'
         if (quoted) {
             quoted = 0;
             continue;
         }
-
+		// need_space在'"'和'\''赋值
         if (need_space) {
+        	// ch
             if (ch == ' ' || ch == '\t' || ch == CR || ch == LF) {
                 last_space = 1;
                 need_space = 0;
                 continue;
             }
-
+			// 本行本命令结束
             if (ch == ';') {
                 return NGX_OK;
             }
-
+			// 本command语句开始 {
             if (ch == '{') {
                 return NGX_CONF_BLOCK_START;
             }
-
+			// ) 这个括号结束
             if (ch == ')') {
                 last_space = 1;
                 need_space = 0;
@@ -654,7 +658,7 @@ ngx_conf_read_token(ngx_conf_t *cf)
                 return NGX_ERROR;
             }
         }
-
+		// last_space为真
         if (last_space) {
 
             start = b->pos - 1;
@@ -673,7 +677,7 @@ ngx_conf_read_token(ngx_conf_t *cf)
                                        "unexpected \"%c\"", ch);
                     return NGX_ERROR;
                 }
-
+				// { 开始
                 if (ch == '{') {
                     return NGX_CONF_BLOCK_START;
                 }
@@ -686,7 +690,7 @@ ngx_conf_read_token(ngx_conf_t *cf)
                                        "unexpected \"}\"");
                     return NGX_ERROR;
                 }
-
+				// } 结束
                 return NGX_CONF_BLOCK_DONE;
 
             case '#':
@@ -700,17 +704,20 @@ ngx_conf_read_token(ngx_conf_t *cf)
 
             case '"':
                 start++;
+                // 双括号为真
                 d_quoted = 1;
                 last_space = 0;
                 continue;
 
             case '\'':
                 start++;
+                // 单括号为真
                 s_quoted = 1;
                 last_space = 0;
                 continue;
 
             case '$':
+            	// 是变量
                 variable = 1;
                 last_space = 0;
                 continue;
@@ -720,29 +727,30 @@ ngx_conf_read_token(ngx_conf_t *cf)
             }
 
         } else {
+        	// { 开始
             if (ch == '{' && variable) {
                 continue;
             }
 
             variable = 0;
-
+			// '\\'标记quoted = 1
             if (ch == '\\') {
                 quoted = 1;
                 continue;
             }
-
+			// 变量标记
             if (ch == '$') {
                 variable = 1;
                 continue;
             }
-
+			// 如果d_quoted为真,且ch='"',则代表找到了found=1,need_space=1
             if (d_quoted) {
                 if (ch == '"') {
                     d_quoted = 0;
                     need_space = 1;
                     found = 1;
                 }
-
+			// 如果s_quoted为真,且ch='\'',则代表了found = 1,need_space=1
             } else if (s_quoted) {
                 if (ch == '\'') {
                     s_quoted = 0;
@@ -762,7 +770,7 @@ ngx_conf_read_token(ngx_conf_t *cf)
                 if (word == NULL) {
                     return NGX_ERROR;
                 }
-
+				// start是单引号和双引号开始的地方,而pos是目前字符串地址
                 word->data = ngx_pnalloc(cf->pool, b->pos - 1 - start + 1);
                 if (word->data == NULL) {
                     return NGX_ERROR;
