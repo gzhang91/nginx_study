@@ -254,13 +254,13 @@ ngx_conf_parse(ngx_conf_t *cf, ngx_str_t *filename)
          *    NGX_CONF_BLOCK_DONE   the "}" was found
          *    NGX_CONF_FILE_DONE    the configuration file is done
          */
-
+		// NGX_ERROR返回出错
         if (rc == NGX_ERROR) {
             goto done;
         }
-
+		// "}"结束
         if (rc == NGX_CONF_BLOCK_DONE) {
-
+			// 如果不是解析block,代表出错了
             if (type != parse_block) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "unexpected \"}\"");
                 goto failed;
@@ -268,9 +268,9 @@ ngx_conf_parse(ngx_conf_t *cf, ngx_str_t *filename)
 
             goto done;
         }
-
+		// 配置文件解析完毕
         if (rc == NGX_CONF_FILE_DONE) {
-
+			// 如果是解析block,代表出错了
             if (type == parse_block) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                                    "unexpected end of file, expecting \"}\"");
@@ -279,9 +279,9 @@ ngx_conf_parse(ngx_conf_t *cf, ngx_str_t *filename)
 
             goto done;
         }
-
+		// "{"开始
         if (rc == NGX_CONF_BLOCK_START) {
-
+			// 如果是解析param,代表出错了.参数中不能用{}
             if (type == parse_param) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                                    "block directives are not supported "
@@ -289,9 +289,9 @@ ngx_conf_parse(ngx_conf_t *cf, ngx_str_t *filename)
                 goto failed;
             }
         }
-
+		// 只能是NGX_OK和NGX_CONF_BLOCK_START才能走到下面
         /* rc == NGX_OK || rc == NGX_CONF_BLOCK_START */
-
+		// 对于types,map,geo等模块,会在命令的set方法中设置cf->handler
         if (cf->handler) {
 
             /*
@@ -318,7 +318,7 @@ ngx_conf_parse(ngx_conf_t *cf, ngx_str_t *filename)
             goto failed;
         }
 
-
+		// 调用中继handler
         rc = ngx_conf_handler(cf, rc);
 
         if (rc == NGX_ERROR) {
@@ -367,20 +367,20 @@ ngx_conf_handler(ngx_conf_t *cf, ngx_int_t last)
     name = cf->args->elts;
 
     found = 0;
-
+	// 其中cf代表
     for (i = 0; cf->cycle->modules[i]; i++) {
-
+		// 获取每个module里面的commands首地址
         cmd = cf->cycle->modules[i]->commands;
         if (cmd == NULL) {
             continue;
         }
-
+		// 获取module中的每个command
         for ( /* void */ ; cmd->name.len; cmd++) {
-
+			// 根据cf中的命令来进行判断对比
             if (name->len != cmd->name.len) {
                 continue;
             }
-
+			// 根据name进行比较
             if (ngx_strcmp(name->data, cmd->name.data) != 0) {
                 continue;
             }
@@ -448,7 +448,7 @@ ngx_conf_handler(ngx_conf_t *cf, ngx_int_t last)
             /* set up the directive's configuration context */
 
             conf = NULL;
-
+			// 根据不同的type得到conf配置,这个conf比较难理解
             if (cmd->type & NGX_DIRECT_CONF) {
                 conf = ((void **) cf->ctx)[cf->cycle->modules[i]->index];
 
@@ -462,7 +462,7 @@ ngx_conf_handler(ngx_conf_t *cf, ngx_int_t last)
                     conf = confp[cf->cycle->modules[i]->ctx_index];
                 }
             }
-
+			// 调用cmd->set方法进行初始化
             rv = cmd->set(cf, cmd, conf);
 
             if (rv == NGX_CONF_OK) {
@@ -501,7 +501,12 @@ invalid:
     return NGX_ERROR;
 }
 
-
+/*
+	从配置文件中读取满足条件的标记标志
+	NGX_ERROR - 返回错误
+	NGX_CONF_BLOCK_START - 返回分界符开始
+	NGX_CONF_BLOCK_DONE - 返回分界符结束
+*/
 static ngx_int_t
 ngx_conf_read_token(ngx_conf_t *cf)
 {
@@ -532,7 +537,7 @@ ngx_conf_read_token(ngx_conf_t *cf)
     file_size = ngx_file_size(&cf->conf_file->file.info);
 
     for ( ;; ) {
-		// pos当前buf中指针 是否 超过当前buf中指针last
+		// pos当前buf中指针 是否 超过当前buf中指针last.如果文件比较大会一片一片地读取
         if (b->pos >= b->last) {
 
             if (cf->conf_file->file.offset >= file_size) {
@@ -824,7 +829,9 @@ ngx_conf_read_token(ngx_conf_t *cf)
     }
 }
 
-
+/*
+	通过include里面的模式匹配解析文件
+*/
 char *
 ngx_conf_include(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
@@ -854,7 +861,7 @@ ngx_conf_include(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     gl.pattern = file.data;
     gl.log = cf->log;
     gl.test = 1;
-
+	// glob库函数用于Linux文件系统中路径名称的模式匹配，即查找文件系统中指定模式的路径
     if (ngx_open_glob(&gl) != NGX_OK) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
                            ngx_open_glob_n " \"%s\" failed", file.data);
@@ -877,7 +884,7 @@ ngx_conf_include(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         }
 
         ngx_log_debug1(NGX_LOG_DEBUG_CORE, cf->log, 0, "include %s", file.data);
-
+		// 解析通过glob匹配得到的文件
         rv = ngx_conf_parse(cf, &file);
 
         if (rv != NGX_CONF_OK) {
@@ -890,7 +897,9 @@ ngx_conf_include(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return rv;
 }
 
-
+/*
+	获取文件全名
+*/
 ngx_int_t
 ngx_conf_full_name(ngx_cycle_t *cycle, ngx_str_t *name, ngx_uint_t conf_prefix)
 {
@@ -901,7 +910,9 @@ ngx_conf_full_name(ngx_cycle_t *cycle, ngx_str_t *name, ngx_uint_t conf_prefix)
     return ngx_get_full_name(cycle->pool, prefix, name);
 }
 
-
+/*
+	从打开的文件中根据name获取打开的文件句柄
+*/
 ngx_open_file_t *
 ngx_conf_open_file(ngx_cycle_t *cycle, ngx_str_t *name)
 {
@@ -920,7 +931,7 @@ ngx_conf_open_file(ngx_cycle_t *cycle, ngx_str_t *name)
         if (ngx_conf_full_name(cycle, &full, 0) != NGX_OK) {
             return NULL;
         }
-
+		// open_files是文件列表
         part = &cycle->open_files.part;
         file = part->elts;
 
@@ -965,7 +976,9 @@ ngx_conf_open_file(ngx_cycle_t *cycle, ngx_str_t *name)
     return file;
 }
 
-
+/*
+	将打开的文件flush到日志文件中
+*/
 static void
 ngx_conf_flush_files(ngx_cycle_t *cycle)
 {
@@ -995,7 +1008,9 @@ ngx_conf_flush_files(ngx_cycle_t *cycle)
     }
 }
 
-
+/*
+	log_error wrapper函数
+*/
 void ngx_cdecl
 ngx_conf_log_error(ngx_uint_t level, ngx_conf_t *cf, ngx_err_t err,
     const char *fmt, ...)
@@ -1029,7 +1044,9 @@ ngx_conf_log_error(ngx_uint_t level, ngx_conf_t *cf, ngx_err_t err,
                   cf->conf_file->file.name.data, cf->conf_file->line);
 }
 
-
+/*
+	flag的set函数, on,off
+*/
 char *
 ngx_conf_set_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
@@ -1069,7 +1086,9 @@ ngx_conf_set_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
-
+/*
+	string的set函数
+*/
 char *
 ngx_conf_set_str_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {

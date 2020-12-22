@@ -195,7 +195,8 @@ static char **ngx_os_environ;
 //#endif
 
 int ngx_cdecl
-ngx_main(int argc, char *const *argv)
+main(int argc, char *const *argv)
+//ngx_main(int argc, char *const *argv)
 {
     ngx_buf_t        *b;
     ngx_log_t        *log;

@@ -42,7 +42,7 @@ void Print(struct student* st) {
 
 u_char *name_const[] = {(u_char *)"gzhang", (u_char *)"liling", (u_char *)"wan"};
 
-int main() {
+int pool_main() {
 	if (ngx_strerror_init() != NGX_OK) {
 		return 1;
 	}
@@ -108,5 +108,6 @@ int main() {
 	ngx_destroy_pool(pool);
 
 	//printf("hello world\n");
+	return 0;
 }
 

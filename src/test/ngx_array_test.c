@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <ngx_core.h>
 
-int main() {
+int array_main() {
 	
 	
 	return 0;
