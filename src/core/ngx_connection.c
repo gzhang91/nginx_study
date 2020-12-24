@@ -15,7 +15,9 @@ ngx_os_io_t  ngx_io;
 
 static void ngx_drain_connections(ngx_cycle_t *cycle);
 
-
+/*
+	创建一个listen 结构体对象
+*/
 ngx_listening_t *
 ngx_create_listening(ngx_conf_t *cf, struct sockaddr *sockaddr,
     socklen_t socklen)
@@ -24,14 +26,14 @@ ngx_create_listening(ngx_conf_t *cf, struct sockaddr *sockaddr,
     ngx_listening_t  *ls;
     struct sockaddr  *sa;
     u_char            text[NGX_SOCKADDR_STRLEN];
-
+	// 从数组中获取ngx_listening_t结构对象
     ls = ngx_array_push(&cf->cycle->listening);
     if (ls == NULL) {
         return NULL;
     }
 
     ngx_memzero(ls, sizeof(ngx_listening_t));
-
+	// 从内存池中申请socklen的socket地址大小内存,并强制转换为sa
     sa = ngx_palloc(cf->pool, socklen);
     if (sa == NULL) {
         return NULL;
@@ -41,7 +43,7 @@ ngx_create_listening(ngx_conf_t *cf, struct sockaddr *sockaddr,
 
     ls->sockaddr = sa;
     ls->socklen = socklen;
-
+	// 将地址转换成字符串格式
     len = ngx_sock_ntop(sa, socklen, text, NGX_SOCKADDR_STRLEN, 1);
     ls->addr_text.len = len;
 
@@ -64,29 +66,31 @@ ngx_create_listening(ngx_conf_t *cf, struct sockaddr *sockaddr,
         ls->addr_text_max_len = NGX_SOCKADDR_STRLEN;
         break;
     }
-
+	// 申请len大小的地址长度
     ls->addr_text.data = ngx_pnalloc(cf->pool, len);
     if (ls->addr_text.data == NULL) {
         return NULL;
     }
-
+	// 将text拷贝到addr_text内存中
     ngx_memcpy(ls->addr_text.data, text, len);
 
 #if !(NGX_WIN32)
     ngx_rbtree_init(&ls->rbtree, &ls->sentinel, ngx_udp_rbtree_insert_value);
 #endif
-
+	// fd设置为-1
     ls->fd = (ngx_socket_t) -1;
+    // type设置为SOCK_STREAM
     ls->type = SOCK_STREAM;
-
+	// backlog 大小置为 -1
     ls->backlog = NGX_LISTEN_BACKLOG;
+    // rcvbuf和sndbuf 大小置为 -1
     ls->rcvbuf = -1;
     ls->sndbuf = -1;
-
+	// set the default FIB (routing table) for the calling process
 #if (NGX_HAVE_SETFIB)
     ls->setfib = -1;
 #endif
-
+	// 第一次三次握手带上cookie,第二次再次握手时候可以通过cookie来快速open
 #if (NGX_HAVE_TCP_FASTOPEN)
     ls->fastopen = -1;
 #endif
@@ -94,7 +98,9 @@ ngx_create_listening(ngx_conf_t *cf, struct sockaddr *sockaddr,
     return ls;
 }
 
-
+/*
+	为每个worker process创建一个ngx_listening_t socket
+*/
 ngx_int_t
 ngx_clone_listening(ngx_cycle_t *cycle, ngx_listening_t *ls)
 {
@@ -130,7 +136,9 @@ ngx_clone_listening(ngx_cycle_t *cycle, ngx_listening_t *ls)
     return NGX_OK;
 }
 
-
+/*
+	
+*/
 ngx_int_t
 ngx_set_inherited_sockets(ngx_cycle_t *cycle)
 {
@@ -150,10 +158,10 @@ ngx_set_inherited_sockets(ngx_cycle_t *cycle)
 #if (NGX_HAVE_REUSEPORT)
     int                        reuseport;
 #endif
-
+	// 循环获取每个listening socket
     ls = cycle->listening.elts;
     for (i = 0; i < cycle->listening.nelts; i++) {
-
+		// 从内存池中申请socket addr地址大小内存
         ls[i].sockaddr = ngx_palloc(cycle->pool, sizeof(ngx_sockaddr_t));
         if (ls[i].sockaddr == NULL) {
             return NGX_ERROR;
@@ -217,7 +225,7 @@ ngx_set_inherited_sockets(ngx_cycle_t *cycle)
         ls[i].backlog = NGX_LISTEN_BACKLOG;
 
         olen = sizeof(int);
-
+		// 获取socket fd的type
         if (getsockopt(ls[i].fd, SOL_SOCKET, SO_TYPE, (void *) &ls[i].type,
                        &olen)
             == -1)
@@ -229,7 +237,7 @@ ngx_set_inherited_sockets(ngx_cycle_t *cycle)
         }
 
         olen = sizeof(int);
-
+		// 获取rcvbuf大小
         if (getsockopt(ls[i].fd, SOL_SOCKET, SO_RCVBUF, (void *) &ls[i].rcvbuf,
                        &olen)
             == -1)
@@ -242,7 +250,7 @@ ngx_set_inherited_sockets(ngx_cycle_t *cycle)
         }
 
         olen = sizeof(int);
-
+		// 获取sndbuf大小
         if (getsockopt(ls[i].fd, SOL_SOCKET, SO_SNDBUF, (void *) &ls[i].sndbuf,
                        &olen)
             == -1)
@@ -281,7 +289,7 @@ ngx_set_inherited_sockets(ngx_cycle_t *cycle)
         olen = sizeof(int);
 
 #ifdef SO_REUSEPORT_LB
-
+		// SO_REUSEPORT_LB存在获取reuseport
         if (getsockopt(ls[i].fd, SOL_SOCKET, SO_REUSEPORT_LB,
                        (void *) &reuseport, &olen)
             == -1)
@@ -295,7 +303,7 @@ ngx_set_inherited_sockets(ngx_cycle_t *cycle)
         }
 
 #else
-
+		// 获取reuseport
         if (getsockopt(ls[i].fd, SOL_SOCKET, SO_REUSEPORT,
                        (void *) &reuseport, &olen)
             == -1)
@@ -310,7 +318,7 @@ ngx_set_inherited_sockets(ngx_cycle_t *cycle)
 #endif
 
 #endif
-
+		// 只操作SOCK_STREAM的socket
         if (ls[i].type != SOCK_STREAM) {
             continue;
         }
@@ -318,7 +326,7 @@ ngx_set_inherited_sockets(ngx_cycle_t *cycle)
 #if (NGX_HAVE_TCP_FASTOPEN)
 
         olen = sizeof(int);
-
+		// 获取TCP_FASTOPEN标记
         if (getsockopt(ls[i].fd, IPPROTO_TCP, TCP_FASTOPEN,
                        (void *) &ls[i].fastopen, &olen)
             == -1)
@@ -342,7 +350,7 @@ ngx_set_inherited_sockets(ngx_cycle_t *cycle)
 
         ngx_memzero(&af, sizeof(struct accept_filter_arg));
         olen = sizeof(struct accept_filter_arg);
-
+		// 获取SO_ACCEPTFILTER, Accept filters allow an application to request that the kernel pre-process incoming connections
         if (getsockopt(ls[i].fd, SOL_SOCKET, SO_ACCEPTFILTER, &af, &olen)
             == -1)
         {
@@ -375,7 +383,7 @@ ngx_set_inherited_sockets(ngx_cycle_t *cycle)
 
         timeout = 0;
         olen = sizeof(int);
-
+		// 获取TCP_DEFER_ACCEPT的timeout
         if (getsockopt(ls[i].fd, IPPROTO_TCP, TCP_DEFER_ACCEPT, &timeout, &olen)
             == -1)
         {
@@ -402,7 +410,9 @@ ngx_set_inherited_sockets(ngx_cycle_t *cycle)
     return NGX_OK;
 }
 
-
+/*
+	打开cycle->listening链表中的套接字
+*/
 ngx_int_t
 ngx_open_listening_sockets(ngx_cycle_t *cycle)
 {
@@ -421,21 +431,21 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
     log = cycle->log;
 
     /* TODO: configurable try number */
-
+	// 尝试五次
     for (tries = 5; tries; tries--) {
         failed = 0;
 
         /* for each listening socket */
-
+		// 从cycle->listening中获取listen socket
         ls = cycle->listening.elts;
         for (i = 0; i < cycle->listening.nelts; i++) {
-
+			// 如果listen socket 的ignore标记存在,跳过
             if (ls[i].ignore) {
                 continue;
             }
 
 #if (NGX_HAVE_REUSEPORT)
-
+			// 如果add_reuseport存在
             if (ls[i].add_reuseport) {
 
                 /*
@@ -447,7 +457,7 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
                 int  reuseport = 1;
 
 #ifdef SO_REUSEPORT_LB
-
+				// 如果存在SO_REUSEPORT_LB,设置SO_REUSEPORT_LB
                 if (setsockopt(ls[i].fd, SOL_SOCKET, SO_REUSEPORT_LB,
                                (const void *) &reuseport, sizeof(int))
                     == -1)
@@ -459,7 +469,7 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
                 }
 
 #else
-
+				// 设置fd的SO_REUSEPORT
                 if (setsockopt(ls[i].fd, SOL_SOCKET, SO_REUSEPORT,
                                (const void *) &reuseport, sizeof(int))
                     == -1)
@@ -473,11 +483,11 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
                 ls[i].add_reuseport = 0;
             }
 #endif
-
+			// 如果fd==-1,跳过
             if (ls[i].fd != (ngx_socket_t) -1) {
                 continue;
             }
-
+			// 如果inherited存在,跳过
             if (ls[i].inherited) {
 
                 /* TODO: close on exit */
@@ -486,7 +496,7 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
 
                 continue;
             }
-
+			// 创建socket s
             s = ngx_socket(ls[i].sockaddr->sa_family, ls[i].type, 0);
 
             if (s == (ngx_socket_t) -1) {
@@ -494,7 +504,7 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
                               ngx_socket_n " %V failed", &ls[i].addr_text);
                 return NGX_ERROR;
             }
-
+			// 为s设置SO_REUSEADDR
             if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR,
                            (const void *) &reuseaddr, sizeof(int))
                 == -1)
@@ -520,7 +530,7 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
                 reuseport = 1;
 
 #ifdef SO_REUSEPORT_LB
-
+				// 如果存在SO_REUSEPORT_LB设置SO_REUSEPORT_LB
                 if (setsockopt(s, SOL_SOCKET, SO_REUSEPORT_LB,
                                (const void *) &reuseport, sizeof(int))
                     == -1)
@@ -539,7 +549,7 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
                 }
 
 #else
-
+				// 设置SO_REUSEPORT
                 if (setsockopt(s, SOL_SOCKET, SO_REUSEPORT,
                                (const void *) &reuseport, sizeof(int))
                     == -1)
@@ -578,7 +588,7 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
             }
 #endif
             /* TODO: close on exit */
-
+			// 如果使用NGX_USE_IOCP_EVENT,需要设置ngx_nonblocking标记
             if (!(ngx_event_flags & NGX_USE_IOCP_EVENT)) {
                 if (ngx_nonblocking(s) == -1) {
                     ngx_log_error(NGX_LOG_EMERG, log, ngx_socket_errno,
@@ -597,7 +607,7 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
 
             ngx_log_debug2(NGX_LOG_DEBUG_CORE, log, 0,
                            "bind() %V #%d ", &ls[i].addr_text, s);
-
+			// bind地址
             if (bind(s, ls[i].sockaddr, ls[i].socklen) == -1) {
                 err = ngx_socket_errno;
 
@@ -645,12 +655,12 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
                 }
             }
 #endif
-
+			// 只处理type = SOCK_STREAM
             if (ls[i].type != SOCK_STREAM) {
                 ls[i].fd = s;
                 continue;
             }
-
+			// listen 
             if (listen(s, ls[i].backlog) == -1) {
                 err = ngx_socket_errno;
 
@@ -708,7 +718,9 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
     return NGX_OK;
 }
 
-
+/*
+	设置cycle->listenning中全部socket的socket options
+*/
 void
 ngx_configure_listening_sockets(ngx_cycle_t *cycle)
 {
@@ -726,6 +738,7 @@ ngx_configure_listening_sockets(ngx_cycle_t *cycle)
         ls[i].log = *ls[i].logp;
 
         if (ls[i].rcvbuf != -1) {
+        	// 设置SO_RCVBUF
             if (setsockopt(ls[i].fd, SOL_SOCKET, SO_RCVBUF,
                            (const void *) &ls[i].rcvbuf, sizeof(int))
                 == -1)
@@ -737,6 +750,7 @@ ngx_configure_listening_sockets(ngx_cycle_t *cycle)
         }
 
         if (ls[i].sndbuf != -1) {
+        	// 设置SO_SNDBUF
             if (setsockopt(ls[i].fd, SOL_SOCKET, SO_SNDBUF,
                            (const void *) &ls[i].sndbuf, sizeof(int))
                 == -1)
@@ -748,6 +762,7 @@ ngx_configure_listening_sockets(ngx_cycle_t *cycle)
         }
 
         if (ls[i].keepalive) {
+        	// 设置SO_KEEPALIVE
             value = (ls[i].keepalive == 1) ? 1 : 0;
 
             if (setsockopt(ls[i].fd, SOL_SOCKET, SO_KEEPALIVE,
@@ -768,7 +783,7 @@ ngx_configure_listening_sockets(ngx_cycle_t *cycle)
 #if (NGX_KEEPALIVE_FACTOR)
             value *= NGX_KEEPALIVE_FACTOR;
 #endif
-
+			// 设置TCP_KEEPIDLE
             if (setsockopt(ls[i].fd, IPPROTO_TCP, TCP_KEEPIDLE,
                            (const void *) &value, sizeof(int))
                 == -1)
@@ -785,7 +800,7 @@ ngx_configure_listening_sockets(ngx_cycle_t *cycle)
 #if (NGX_KEEPALIVE_FACTOR)
             value *= NGX_KEEPALIVE_FACTOR;
 #endif
-
+			// 设置TCP_KEEPINTVL
             if (setsockopt(ls[i].fd, IPPROTO_TCP, TCP_KEEPINTVL,
                            (const void *) &value, sizeof(int))
                 == -1)
@@ -797,6 +812,7 @@ ngx_configure_listening_sockets(ngx_cycle_t *cycle)
         }
 
         if (ls[i].keepcnt) {
+        	// 设置TCP_KEEPCNT
             if (setsockopt(ls[i].fd, IPPROTO_TCP, TCP_KEEPCNT,
                            (const void *) &ls[i].keepcnt, sizeof(int))
                 == -1)
@@ -811,6 +827,7 @@ ngx_configure_listening_sockets(ngx_cycle_t *cycle)
 
 #if (NGX_HAVE_SETFIB)
         if (ls[i].setfib != -1) {
+        	// 设置SO_SETFIB
             if (setsockopt(ls[i].fd, SOL_SOCKET, SO_SETFIB,
                            (const void *) &ls[i].setfib, sizeof(int))
                 == -1)
@@ -824,6 +841,7 @@ ngx_configure_listening_sockets(ngx_cycle_t *cycle)
 
 #if (NGX_HAVE_TCP_FASTOPEN)
         if (ls[i].fastopen != -1) {
+        	// 设置TCP_FASTOPEN
             if (setsockopt(ls[i].fd, IPPROTO_TCP, TCP_FASTOPEN,
                            (const void *) &ls[i].fastopen, sizeof(int))
                 == -1)
@@ -871,7 +889,8 @@ ngx_configure_listening_sockets(ngx_cycle_t *cycle)
 #ifdef SO_ACCEPTFILTER
 
         if (ls[i].delete_deferred) {
-            if (setsockopt(ls[i].fd, SOL_SOCKET, SO_ACCEPTFILTER, NULL, 0)
+        	// 删除某个acceptfilter
+        	if (setsockopt(ls[i].fd, SOL_SOCKET, SO_ACCEPTFILTER, NULL, 0)
                 == -1)
             {
                 ngx_log_error(NGX_LOG_ALERT, cycle->log, ngx_socket_errno,
@@ -896,7 +915,7 @@ ngx_configure_listening_sockets(ngx_cycle_t *cycle)
             ngx_memzero(&af, sizeof(struct accept_filter_arg));
             (void) ngx_cpystrn((u_char *) af.af_name,
                                (u_char *) ls[i].accept_filter, 16);
-
+			// 添加某个acceptfilter
             if (setsockopt(ls[i].fd, SOL_SOCKET, SO_ACCEPTFILTER,
                            &af, sizeof(struct accept_filter_arg))
                 == -1)
@@ -929,7 +948,7 @@ ngx_configure_listening_sockets(ngx_cycle_t *cycle)
             } else {
                 value = 0;
             }
-
+			// 设置TCP_DEFER_ACCEPT
             if (setsockopt(ls[i].fd, IPPROTO_TCP, TCP_DEFER_ACCEPT,
                            &value, sizeof(int))
                 == -1)
@@ -958,7 +977,7 @@ ngx_configure_listening_sockets(ngx_cycle_t *cycle)
             && ls[i].sockaddr->sa_family == AF_INET)
         {
             value = 1;
-
+			// 设置IP_RECVDSTADDR
             if (setsockopt(ls[i].fd, IPPROTO_IP, IP_RECVDSTADDR,
                            (const void *) &value, sizeof(int))
                 == -1)
@@ -977,7 +996,7 @@ ngx_configure_listening_sockets(ngx_cycle_t *cycle)
             && ls[i].sockaddr->sa_family == AF_INET)
         {
             value = 1;
-
+			// 设置IP_PKTINFO
             if (setsockopt(ls[i].fd, IPPROTO_IP, IP_PKTINFO,
                            (const void *) &value, sizeof(int))
                 == -1)
@@ -998,7 +1017,7 @@ ngx_configure_listening_sockets(ngx_cycle_t *cycle)
             && ls[i].sockaddr->sa_family == AF_INET6)
         {
             value = 1;
-
+			// 设置IPV6_RECVPKTINFO
             if (setsockopt(ls[i].fd, IPPROTO_IPV6, IPV6_RECVPKTINFO,
                            (const void *) &value, sizeof(int))
                 == -1)
@@ -1016,14 +1035,16 @@ ngx_configure_listening_sockets(ngx_cycle_t *cycle)
     return;
 }
 
-
+/*
+	关闭监听的socket
+*/
 void
 ngx_close_listening_sockets(ngx_cycle_t *cycle)
 {
     ngx_uint_t         i;
     ngx_listening_t   *ls;
     ngx_connection_t  *c;
-
+	// 如果是IOCP,直接返回
     if (ngx_event_flags & NGX_USE_IOCP_EVENT) {
         return;
     }
@@ -1033,11 +1054,13 @@ ngx_close_listening_sockets(ngx_cycle_t *cycle)
 
     ls = cycle->listening.elts;
     for (i = 0; i < cycle->listening.nelts; i++) {
-
+		// 从listen 列表中获取connection
         c = ls[i].connection;
 
         if (c) {
+        	// 如果read事件还在活动中
             if (c->read->active) {
+            	// 使用了EPOLL
                 if (ngx_event_flags & NGX_USE_EPOLL_EVENT) {
 
                     /*
@@ -1045,22 +1068,23 @@ ngx_close_listening_sockets(ngx_cycle_t *cycle)
                      * for closed shared listening sockets unless
                      * the events was explicitly deleted
                      */
-
+					// 从epoll中删除READ_EVENT
                     ngx_del_event(c->read, NGX_READ_EVENT, 0);
 
                 } else {
+                	// 从其他非epoll的函数中关闭READ_EVENT,并删除READ EVENT
                     ngx_del_event(c->read, NGX_READ_EVENT, NGX_CLOSE_EVENT);
                 }
             }
-
+			// 释放connection
             ngx_free_connection(c);
-
+			// 将connection中的fd置为-1
             c->fd = (ngx_socket_t) -1;
         }
 
         ngx_log_debug2(NGX_LOG_DEBUG_CORE, cycle->log, 0,
                        "close listening %V #%d ", &ls[i].addr_text, ls[i].fd);
-
+		// 关闭套接字
         if (ngx_close_socket(ls[i].fd) == -1) {
             ngx_log_error(NGX_LOG_EMERG, cycle->log, ngx_socket_errno,
                           ngx_close_socket_n " %V failed", &ls[i].addr_text);
@@ -1088,7 +1112,9 @@ ngx_close_listening_sockets(ngx_cycle_t *cycle)
     cycle->listening.nelts = 0;
 }
 
-
+/*
+	获取一个空闲的connection
+*/
 ngx_connection_t *
 ngx_get_connection(ngx_socket_t s, ngx_log_t *log)
 {
@@ -1097,7 +1123,7 @@ ngx_get_connection(ngx_socket_t s, ngx_log_t *log)
     ngx_connection_t  *c;
 
     /* disable warning: Win32 SOCKET is u_int while UNIX socket is int */
-
+	// 判断s的大小是否在files_n的范围内
     if (ngx_cycle->files && (ngx_uint_t) s >= ngx_cycle->files_n) {
         ngx_log_error(NGX_LOG_ALERT, log, 0,
                       "the new socket has number %d, "
@@ -1105,14 +1131,15 @@ ngx_get_connection(ngx_socket_t s, ngx_log_t *log)
                       s, ngx_cycle->files_n);
         return NULL;
     }
-
+	// 获取free_connections的头指针
     c = ngx_cycle->free_connections;
 
     if (c == NULL) {
+    	// 重新获取是否存在可以是否drain的connection
         ngx_drain_connections((ngx_cycle_t *) ngx_cycle);
         c = ngx_cycle->free_connections;
     }
-
+	// 如果实在为空,就报错
     if (c == NULL) {
         ngx_log_error(NGX_LOG_ALERT, log, 0,
                       "%ui worker_connections are not enough",
@@ -1120,77 +1147,86 @@ ngx_get_connection(ngx_socket_t s, ngx_log_t *log)
 
         return NULL;
     }
-
+	// c->data指向下一个空闲链表下一个节点,这边就是指向下一个节点
     ngx_cycle->free_connections = c->data;
+    // 空闲节点--
     ngx_cycle->free_connection_n--;
-
+	// 保存c到files中
     if (ngx_cycle->files && ngx_cycle->files[s] == NULL) {
         ngx_cycle->files[s] = c;
     }
-
+	// 备份之前的read,write event
     rev = c->read;
     wev = c->write;
 
     ngx_memzero(c, sizeof(ngx_connection_t));
-
+	// 赋值之前备份的read, write event
     c->read = rev;
     c->write = wev;
+    // fd赋值为s
     c->fd = s;
     c->log = log;
-
+	// 备份之前的instance值
     instance = rev->instance;
 
     ngx_memzero(rev, sizeof(ngx_event_t));
     ngx_memzero(wev, sizeof(ngx_event_t));
-
+	// 将instance置为反值来避免过期事件
     rev->instance = !instance;
     wev->instance = !instance;
 
     rev->index = NGX_INVALID_INDEX;
     wev->index = NGX_INVALID_INDEX;
-
+	// rev,wev的数据句柄存储为c的指针
     rev->data = c;
     wev->data = c;
-
+	// 可写置为1
     wev->write = 1;
 
     return c;
 }
 
-
+/*
+	释放某个连接
+	将connection放入空闲链表中
+*/
 void
 ngx_free_connection(ngx_connection_t *c)
 {
+	// c->data 指向free_connection的首指针
     c->data = ngx_cycle->free_connections;
+    // free_connection的手指针置为c
     ngx_cycle->free_connections = c;
     ngx_cycle->free_connection_n++;
-
+	// 将files里面的指针值置为NULL
     if (ngx_cycle->files && ngx_cycle->files[c->fd] == c) {
         ngx_cycle->files[c->fd] = NULL;
     }
 }
 
-
+/*
+	关闭connection
+*/
 void
 ngx_close_connection(ngx_connection_t *c)
 {
     ngx_err_t     err;
     ngx_uint_t    log_error, level;
     ngx_socket_t  fd;
-
+	// 如果connection中的fd为-1,不需要处理
     if (c->fd == (ngx_socket_t) -1) {
         ngx_log_error(NGX_LOG_ALERT, c->log, 0, "connection already closed");
         return;
     }
-
+	// 如果read event设置了timer_set代表存在定时器,需要先删除timer
     if (c->read->timer_set) {
         ngx_del_timer(c->read);
     }
-
+	// 如果write event设置了timer_set代表存在定时器,需要先删除timer
     if (c->write->timer_set) {
         ngx_del_timer(c->write);
     }
-
+	// 如果存在shared标记,不需要从epoll等中删除对应的READ_EVENT和WRITE_EVENT
     if (!c->shared) {
         if (ngx_del_conn) {
             ngx_del_conn(c, NGX_CLOSE_EVENT);
@@ -1205,31 +1241,31 @@ ngx_close_connection(ngx_connection_t *c)
             }
         }
     }
-
+	// 如果read event存在posted标记,则先从post队列中删除该read event
     if (c->read->posted) {
         ngx_delete_posted_event(c->read);
     }
-
+	// 如果write event存在posted标记,则先从post队列中删除该write event
     if (c->write->posted) {
         ngx_delete_posted_event(c->write);
     }
-
+	// 设置read,write evnet的closed标记
     c->read->closed = 1;
     c->write->closed = 1;
-
+	// 从reusable_connections_queue中释放connection
     ngx_reusable_connection(c, 0);
 
     log_error = c->log_error;
-
+	// 释放connection到free list之中
     ngx_free_connection(c);
-
+	// 备份fd
     fd = c->fd;
     c->fd = (ngx_socket_t) -1;
-
+	// 如果shared标记,直接返回
     if (c->shared) {
         return;
     }
-
+	// 关闭socket
     if (ngx_close_socket(fd) == -1) {
 
         err = ngx_socket_errno;
@@ -1258,14 +1294,17 @@ ngx_close_connection(ngx_connection_t *c)
     }
 }
 
-
+/*
+	将connction插入到reusable_connections_queue中
+*/
 void
 ngx_reusable_connection(ngx_connection_t *c, ngx_uint_t reusable)
 {
     ngx_log_debug1(NGX_LOG_DEBUG_CORE, c->log, 0,
                    "reusable connection: %ui", reusable);
-
+	// 如果存在reusable
     if (c->reusable) {
+    	// 从ngx_cycle->reusable_connections_queue中移除c->queue
         ngx_queue_remove(&c->queue);
         ngx_cycle->reusable_connections_n--;
 
@@ -1273,12 +1312,12 @@ ngx_reusable_connection(ngx_connection_t *c, ngx_uint_t reusable)
         (void) ngx_atomic_fetch_add(ngx_stat_waiting, -1);
 #endif
     }
-
+	// 设置reusable
     c->reusable = reusable;
 
     if (reusable) {
         /* need cast as ngx_cycle is volatile */
-
+		// 将c->queue插入到ngx_cycle->reusable_connections_queue链表中
         ngx_queue_insert_head(
             (ngx_queue_t *) &ngx_cycle->reusable_connections_queue, &c->queue);
         ngx_cycle->reusable_connections_n++;
@@ -1289,33 +1328,40 @@ ngx_reusable_connection(ngx_connection_t *c, ngx_uint_t reusable)
     }
 }
 
-
+/*
+	从reusable_connections_queue中释放connection
+*/
 static void
 ngx_drain_connections(ngx_cycle_t *cycle)
 {
     ngx_uint_t         i, n;
     ngx_queue_t       *q;
     ngx_connection_t  *c;
-
+	// 计算出需要从reusable_connections_queue中释放的connection
     n = ngx_max(ngx_min(32, cycle->reusable_connections_n / 8), 1);
 
     for (i = 0; i < n; i++) {
+    	// 如果为空不用处理
         if (ngx_queue_empty(&cycle->reusable_connections_queue)) {
             break;
         }
-
+		// 获取列表最后的记录
         q = ngx_queue_last(&cycle->reusable_connections_queue);
+        // 通过节点获取connection
         c = ngx_queue_data(q, ngx_connection_t, queue);
 
         ngx_log_debug0(NGX_LOG_DEBUG_CORE, c->log, 0,
                        "reusing connection");
-
+		// 设置connection的close=1
         c->close = 1;
+        // 回调
         c->read->handler(c->read);
     }
 }
 
-
+/*
+	关闭idle connection
+*/
 void
 ngx_close_idle_connections(ngx_cycle_t *cycle)
 {
@@ -1327,7 +1373,7 @@ ngx_close_idle_connections(ngx_cycle_t *cycle)
     for (i = 0; i < cycle->connection_n; i++) {
 
         /* THREAD: lock */
-
+		// 关闭fd!=-1且idle有标记,需要关闭此connection.因为connection idle了就不需要关闭了
         if (c[i].fd != (ngx_socket_t) -1 && c[i].idle) {
             c[i].close = 1;
             c[i].read->handler(c[i].read);
@@ -1335,7 +1381,9 @@ ngx_close_idle_connections(ngx_cycle_t *cycle)
     }
 }
 
-
+/*
+	获取本地套接字地址
+*/
 ngx_int_t
 ngx_connection_local_sockaddr(ngx_connection_t *c, ngx_str_t *s,
     ngx_uint_t port)
@@ -1377,16 +1425,16 @@ ngx_connection_local_sockaddr(ngx_connection_t *c, ngx_str_t *s,
             break;
         }
     }
-
+	// 如果c->local_socklen<=0或addr解析为null
     if (addr == 0) {
 
         len = sizeof(ngx_sockaddr_t);
-
+		// 根据fd获取sockaddr
         if (getsockname(c->fd, &sa.sockaddr, &len) == -1) {
             ngx_connection_error(c, ngx_socket_errno, "getsockname() failed");
             return NGX_ERROR;
         }
-
+		// 将fd获取的sockaddr拷贝到local_sockaddr中
         c->local_sockaddr = ngx_palloc(c->pool, len);
         if (c->local_sockaddr == NULL) {
             return NGX_ERROR;
@@ -1396,23 +1444,25 @@ ngx_connection_local_sockaddr(ngx_connection_t *c, ngx_str_t *s,
 
         c->local_socklen = len;
     }
-
+	// 如果s为空,直接返回
     if (s == NULL) {
         return NGX_OK;
     }
-
+	// 根据s->data解析到local_sockaddr中
     s->len = ngx_sock_ntop(c->local_sockaddr, c->local_socklen,
                            s->data, s->len, port);
 
     return NGX_OK;
 }
 
-
+/*
+	设置tcp_nodelay标记
+*/
 ngx_int_t
 ngx_tcp_nodelay(ngx_connection_t *c)
 {
     int  tcp_nodelay;
-
+	// 如果c->tcp_nodelay != NGX_TCP_NODELAY_UNSET,直接返回
     if (c->tcp_nodelay != NGX_TCP_NODELAY_UNSET) {
         return NGX_OK;
     }
@@ -1420,7 +1470,7 @@ ngx_tcp_nodelay(ngx_connection_t *c)
     ngx_log_debug0(NGX_LOG_DEBUG_CORE, c->log, 0, "tcp_nodelay");
 
     tcp_nodelay = 1;
-
+	// 设置TCP_NODELAY
     if (setsockopt(c->fd, IPPROTO_TCP, TCP_NODELAY,
                    (const void *) &tcp_nodelay, sizeof(int))
         == -1)
@@ -1444,13 +1494,15 @@ ngx_tcp_nodelay(ngx_connection_t *c)
                              "setsockopt(TCP_NODELAY) failed");
         return NGX_ERROR;
     }
-
+	// 设置c->tcp_nodelay的值
     c->tcp_nodelay = NGX_TCP_NODELAY_SET;
 
     return NGX_OK;
 }
 
-
+/*
+	输出log_error日志
+*/
 ngx_int_t
 ngx_connection_error(ngx_connection_t *c, ngx_err_t err, char *text)
 {

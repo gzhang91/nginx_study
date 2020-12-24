@@ -25,7 +25,9 @@ static ngx_int_t ngx_crypt_sha(ngx_pool_t *pool, u_char *key, u_char *salt,
 
 static u_char *ngx_crypt_to64(u_char *p, uint32_t v, size_t n);
 
-
+/*
+	加密算法
+*/
 ngx_int_t
 ngx_crypt(ngx_pool_t *pool, u_char *key, u_char *salt, u_char **encrypted)
 {
@@ -47,7 +49,9 @@ ngx_crypt(ngx_pool_t *pool, u_char *key, u_char *salt, u_char **encrypted)
     return ngx_libc_crypt(pool, key, salt, encrypted);
 }
 
-
+/*
+	使用apr算法
+*/
 static ngx_int_t
 ngx_crypt_apr1(ngx_pool_t *pool, u_char *key, u_char *salt, u_char **encrypted)
 {
@@ -163,7 +167,9 @@ ngx_crypt_to64(u_char *p, uint32_t v, size_t n)
     return p;
 }
 
-
+/*
+	使用plain算法
+*/
 static ngx_int_t
 ngx_crypt_plain(ngx_pool_t *pool, u_char *key, u_char *salt, u_char **encrypted)
 {
@@ -183,7 +189,9 @@ ngx_crypt_plain(ngx_pool_t *pool, u_char *key, u_char *salt, u_char **encrypted)
     return NGX_OK;
 }
 
-
+/*
+	使用ssha算法
+*/
 static ngx_int_t
 ngx_crypt_ssha(ngx_pool_t *pool, u_char *key, u_char *salt, u_char **encrypted)
 {
@@ -235,7 +243,9 @@ ngx_crypt_ssha(ngx_pool_t *pool, u_char *key, u_char *salt, u_char **encrypted)
     return NGX_OK;
 }
 
-
+/*
+	使用sha算法
+*/
 static ngx_int_t
 ngx_crypt_sha(ngx_pool_t *pool, u_char *key, u_char *salt, u_char **encrypted)
 {

@@ -16,7 +16,9 @@
 extern uint32_t  *ngx_crc32_table_short;
 extern uint32_t   ngx_crc32_table256[];
 
-
+/*
+	crc32 short算法
+*/
 static ngx_inline uint32_t
 ngx_crc32_short(u_char *p, size_t len)
 {
@@ -34,7 +36,9 @@ ngx_crc32_short(u_char *p, size_t len)
     return crc ^ 0xffffffff;
 }
 
-
+/*
+	crc32 long算法
+*/
 static ngx_inline uint32_t
 ngx_crc32_long(u_char *p, size_t len)
 {

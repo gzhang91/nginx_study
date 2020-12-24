@@ -101,6 +101,9 @@ uint32_t  ngx_crc32_table256[] = {
 
 uint32_t *ngx_crc32_table_short = ngx_crc32_table16;
 
+/*
+	crc32 算法初始化
+*/
 
 ngx_int_t
 ngx_crc32_table_init(void)
