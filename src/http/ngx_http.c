@@ -132,8 +132,16 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return "is duplicate";
     }
 
-    /* the main http context */
+    /*
+		typedef struct {
+		    void        **main_conf;
+		    void        **srv_conf;
+		    void        **loc_conf;
+		} ngx_http_conf_ctx_t;
+    */
 
+    /* the main http context */
+	// 创建main http context
     ctx = ngx_pcalloc(cf->pool, sizeof(ngx_http_conf_ctx_t));
     if (ctx == NULL) {
         return NGX_CONF_ERROR;
@@ -143,12 +151,12 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
 
     /* count the number of the http modules and set up their indices */
-
+	// 通过http module来计算max_module和ctx_index. type=NGX_HTTP_MODULE
     ngx_http_max_module = ngx_count_modules(cf->cycle, NGX_HTTP_MODULE);
 
 
     /* the http main_conf context, it is the same in the all http contexts */
-
+	// 创建http的main_conf
     ctx->main_conf = ngx_pcalloc(cf->pool,
                                  sizeof(void *) * ngx_http_max_module);
     if (ctx->main_conf == NULL) {
@@ -160,7 +168,7 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
      * the http null srv_conf context, it is used to merge
      * the server{}s' srv_conf's
      */
-
+	// 创建http的srv_conf
     ctx->srv_conf = ngx_pcalloc(cf->pool, sizeof(void *) * ngx_http_max_module);
     if (ctx->srv_conf == NULL) {
         return NGX_CONF_ERROR;
@@ -171,7 +179,7 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
      * the http null loc_conf context, it is used to merge
      * the server{}s' loc_conf's
      */
-
+	// 创建http的loc_conf
     ctx->loc_conf = ngx_pcalloc(cf->pool, sizeof(void *) * ngx_http_max_module);
     if (ctx->loc_conf == NULL) {
         return NGX_CONF_ERROR;
@@ -184,6 +192,7 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
      */
 
     for (m = 0; cf->cycle->modules[m]; m++) {
+    	// 只处理NGX_HTTP_MODULE
         if (cf->cycle->modules[m]->type != NGX_HTTP_MODULE) {
             continue;
         }
@@ -192,6 +201,7 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         mi = cf->cycle->modules[m]->ctx_index;
 
         if (module->create_main_conf) {
+        	// mi为索引值,main_conf[mi]
             ctx->main_conf[mi] = module->create_main_conf(cf);
             if (ctx->main_conf[mi] == NULL) {
                 return NGX_CONF_ERROR;
@@ -199,6 +209,7 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         }
 
         if (module->create_srv_conf) {
+        	// mi为索引值,srv_conf[mi]
             ctx->srv_conf[mi] = module->create_srv_conf(cf);
             if (ctx->srv_conf[mi] == NULL) {
                 return NGX_CONF_ERROR;
@@ -206,6 +217,7 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         }
 
         if (module->create_loc_conf) {
+        	// mi为索引值,loc_conf[mi]
             ctx->loc_conf[mi] = module->create_loc_conf(cf);
             if (ctx->loc_conf[mi] == NULL) {
                 return NGX_CONF_ERROR;
@@ -217,12 +229,13 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     cf->ctx = ctx;
 
     for (m = 0; cf->cycle->modules[m]; m++) {
+    	// 只处理NGX_HTTP_MODULE
         if (cf->cycle->modules[m]->type != NGX_HTTP_MODULE) {
             continue;
         }
 
         module = cf->cycle->modules[m]->ctx;
-
+		// 调用module的preconfiguration函数
         if (module->preconfiguration) {
             if (module->preconfiguration(cf) != NGX_OK) {
                 return NGX_CONF_ERROR;
@@ -231,8 +244,9 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     /* parse inside the http{} block */
-
+	// 设置module_type为NGX_HTTP_MODULE
     cf->module_type = NGX_HTTP_MODULE;
+    // 设置cmd_type为NGX_HTTP_MAIN_CONF
     cf->cmd_type = NGX_HTTP_MAIN_CONF;
     rv = ngx_conf_parse(cf, NULL);
 

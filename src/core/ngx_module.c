@@ -21,24 +21,28 @@ static ngx_uint_t ngx_module_ctx_index(ngx_cycle_t *cycle, ngx_uint_t type,
 ngx_uint_t         ngx_max_module;
 static ngx_uint_t  ngx_modules_n;
 
-
+/*
+	ngx_modules.c中生成了ngx_modules数组,这里需要将index和name填入,并计算modules的数目
+*/
 ngx_int_t
 ngx_preinit_modules(void)
 {
     ngx_uint_t  i;
-
+	// 设置index和name,ngx_modules是在ngx_modules.c中定义的module
     for (i = 0; ngx_modules[i]; i++) {
         ngx_modules[i]->index = i;
         ngx_modules[i]->name = ngx_module_names[i];
     }
-
+	// 设置modules最大大小
     ngx_modules_n = i;
     ngx_max_module = ngx_modules_n + NGX_MAX_DYNAMIC_MODULES;
 
     return NGX_OK;
 }
 
-
+/*
+	在内存池中申请(ngx_max_module + 1) * modules结构体,并将全局变量ngx_modules拷贝到cycle->modules中
+*/
 ngx_int_t
 ngx_cycle_modules(ngx_cycle_t *cycle)
 {
@@ -61,12 +65,14 @@ ngx_cycle_modules(ngx_cycle_t *cycle)
     return NGX_OK;
 }
 
-
+/*
+	全部modules初始化函数,调用的是module->init_module
+*/
 ngx_int_t
 ngx_init_modules(ngx_cycle_t *cycle)
 {
     ngx_uint_t  i;
-
+	// 调用每个module的init_module函数
     for (i = 0; cycle->modules[i]; i++) {
         if (cycle->modules[i]->init_module) {
             if (cycle->modules[i]->init_module(cycle) != NGX_OK) {
@@ -78,7 +84,9 @@ ngx_init_modules(ngx_cycle_t *cycle)
     return NGX_OK;
 }
 
-
+/*
+	根据type计算ctx_index
+*/
 ngx_int_t
 ngx_count_modules(ngx_cycle_t *cycle, ngx_uint_t type)
 {
@@ -92,19 +100,19 @@ ngx_count_modules(ngx_cycle_t *cycle, ngx_uint_t type)
 
     for (i = 0; cycle->modules[i]; i++) {
         module = cycle->modules[i];
-
+		// 只处理type类型的
         if (module->type != type) {
             continue;
         }
-
+		// 如果module->ctx_index不为NGX_MODULE_UNSET_INDEX,就处理
         if (module->ctx_index != NGX_MODULE_UNSET_INDEX) {
 
             /* if ctx_index was assigned, preserve it */
-
+			// 记录max最大索引
             if (module->ctx_index > max) {
                 max = module->ctx_index;
             }
-
+			// 获取下一个索引
             if (module->ctx_index == next) {
                 next++;
             }
@@ -115,11 +123,11 @@ ngx_count_modules(ngx_cycle_t *cycle, ngx_uint_t type)
         /* search for some free index */
 
         module->ctx_index = ngx_module_ctx_index(cycle, type, next);
-
+		// 获取max索引值
         if (module->ctx_index > max) {
             max = module->ctx_index;
         }
-
+		// next值
         next = module->ctx_index + 1;
     }
 

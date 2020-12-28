@@ -369,7 +369,7 @@ ngx_conf_handler(ngx_conf_t *cf, ngx_int_t last)
     found = 0;
 	// 其中cf代表
     for (i = 0; cf->cycle->modules[i]; i++) {
-		// 获取每个module里面的commands首地址
+		// 获取每个module里面的commands首地址, module中存在ctx和commands
         cmd = cf->cycle->modules[i]->commands;
         if (cmd == NULL) {
             continue;
@@ -386,7 +386,7 @@ ngx_conf_handler(ngx_conf_t *cf, ngx_int_t last)
             }
 
             found = 1;
-
+			// 对于非NGX_CONF_MODULE不处理和只处理module_type类型的
             if (cf->cycle->modules[i]->type != NGX_CONF_MODULE
                 && cf->cycle->modules[i]->type != cf->module_type)
             {
@@ -449,20 +449,36 @@ ngx_conf_handler(ngx_conf_t *cf, ngx_int_t last)
 
             conf = NULL;
 			// 根据不同的type得到conf配置,这个conf比较难理解
+			// 对于core_module而言,使用的是*ctx = ****conf_ctx, conf.ctx = cycle->conf_ctx;
+				// 即可调用conf = ((void **) cf->ctx)[cf->cycle->modules[i]->index];
+			// 对于二级module而言(非core module),调用的是,需要先找到是main_conf,srv_conf还是loc_conf
+				// confp = *(void **) ((char *) cf->ctx + cmd->conf);
+				// cmd->conf只有三个值
+				// 1. #define NGX_HTTP_MAIN_CONF_OFFSET  offsetof(ngx_http_conf_ctx_t, main_conf)
+				// 2. #define NGX_HTTP_SRV_CONF_OFFSET   offsetof(ngx_http_conf_ctx_t, srv_conf)
+				// 3. #define NGX_HTTP_LOC_CONF_OFFSET   offsetof(ngx_http_conf_ctx_t, loc_conf)
             if (cmd->type & NGX_DIRECT_CONF) {
+            	// 如果cmd->type为NGX_DIRECT_CONF,需要
                 conf = ((void **) cf->ctx)[cf->cycle->modules[i]->index];
 
             } else if (cmd->type & NGX_MAIN_CONF) {
+            	// 如果cmd->type为NGX_MAIN_CONF,
                 conf = &(((void **) cf->ctx)[cf->cycle->modules[i]->index]);
 
             } else if (cf->ctx) {
                 confp = *(void **) ((char *) cf->ctx + cmd->conf);
-
+				// 二级module中使用ctx_index代表索引
                 if (confp) {
                     conf = confp[cf->cycle->modules[i]->ctx_index];
                 }
             }
 			// 调用cmd->set方法进行初始化
+			// 这里假定使用 http 为例子
+			// http {
+			//	listen 80;
+			// } 为例
+			// 1. 解析到http {,在ngx_http.c中调用ngx_http_block函数
+			// 2. 解析到listen,调用ngx_http_core_module.c中的ngx_http_core_listen函数
             rv = cmd->set(cf, cmd, conf);
 
             if (rv == NGX_CONF_OK) {

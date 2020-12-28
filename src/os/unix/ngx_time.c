@@ -20,7 +20,9 @@
  *
  * Solaris does not test /etc/TIMEZONE change too and no workaround available.
  */
-
+/*
+	更新timezone
+*/
 void
 ngx_timezone_update(void)
 {
@@ -39,6 +41,7 @@ ngx_timezone_update(void)
     tzset();
 
 #elif (NGX_LINUX)
+	// Linux会根据strftime来stat("/etc/localtime")来更新timezone
     time_t      s;
     struct tm  *t;
     char        buf[4];

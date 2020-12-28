@@ -76,7 +76,9 @@ ngx_time_init(void)
     ngx_time_update();
 }
 
-
+/*
+	与时间相关的全局变量更新
+*/
 void
 ngx_time_update(void)
 {
@@ -86,37 +88,37 @@ ngx_time_update(void)
     ngx_uint_t       msec;
     ngx_time_t      *tp;
     struct timeval   tv;
-
+	// ngx_time_lock是atomic_t类型的变量
     if (!ngx_trylock(&ngx_time_lock)) {
         return;
     }
-
+	// 调用gettimeofday
     ngx_gettimeofday(&tv);
 
     sec = tv.tv_sec;
     msec = tv.tv_usec / 1000;
-
+	// 获取monotonic_time
     ngx_current_msec = ngx_monotonic_time(sec, msec);
-
+	// 取得缓存的时间列表,slot是index
     tp = &cached_time[slot];
-
+	// 如果还在1s内,不需要重新更新了,直接返回,解锁
     if (tp->sec == sec) {
         tp->msec = msec;
         ngx_unlock(&ngx_time_lock);
         return;
     }
-
+	// 获取下一个索引,如果超过63,开始回滚
     if (slot == NGX_TIME_SLOTS - 1) {
         slot = 0;
     } else {
         slot++;
     }
-
+	// tp指向下一个cached_time
     tp = &cached_time[slot];
 
     tp->sec = sec;
     tp->msec = msec;
-
+	// 根据sec获取年月日时分秒
     ngx_gmtime(sec, &gmt);
 
 
@@ -126,12 +128,12 @@ ngx_time_update(void)
                        week[gmt.ngx_tm_wday], gmt.ngx_tm_mday,
                        months[gmt.ngx_tm_mon - 1], gmt.ngx_tm_year,
                        gmt.ngx_tm_hour, gmt.ngx_tm_min, gmt.ngx_tm_sec);
-
+// 如果存在GETTIMEZONE,使用gettimezone获取gmtoff
 #if (NGX_HAVE_GETTIMEZONE)
 
     tp->gmtoff = ngx_gettimezone();
     ngx_gmtime(sec + tp->gmtoff * 60, &tm);
-
+// 如果存在GMTOFF,使用ngx_tm_gmtoff
 #elif (NGX_HAVE_GMTOFF)
 
     ngx_localtime(sec, &tm);
@@ -139,7 +141,7 @@ ngx_time_update(void)
     tp->gmtoff = cached_gmtoff;
 
 #else
-
+// 否则使用ngx_tm_isdst
     ngx_localtime(sec, &tm);
     cached_gmtoff = ngx_timezone(tm.ngx_tm_isdst);
     tp->gmtoff = cached_gmtoff;
@@ -178,7 +180,7 @@ ngx_time_update(void)
     (void) ngx_sprintf(p4, "%s %2d %02d:%02d:%02d",
                        months[tm.ngx_tm_mon - 1], tm.ngx_tm_mday,
                        tm.ngx_tm_hour, tm.ngx_tm_min, tm.ngx_tm_sec);
-
+	// 内存刷新一下,相当于个cpu空转一下
     ngx_memory_barrier();
 
     ngx_cached_time = tp;
@@ -191,20 +193,23 @@ ngx_time_update(void)
     ngx_unlock(&ngx_time_lock);
 }
 
-
+/*
+	获取monotonic_time时间
+*/
 static ngx_msec_t
 ngx_monotonic_time(time_t sec, ngx_uint_t msec)
 {
+// 若存在CLOCK_MONOTONIC
 #if (NGX_HAVE_CLOCK_MONOTONIC)
     struct timespec  ts;
-
+// 如果定义了CLOCK_MONOTONIC_FAST
 #if defined(CLOCK_MONOTONIC_FAST)
     clock_gettime(CLOCK_MONOTONIC_FAST, &ts);
-
+// 如果定义了CLOCK_MONOTONIC_COARSE
 #elif defined(CLOCK_MONOTONIC_COARSE)
     clock_gettime(CLOCK_MONOTONIC_COARSE, &ts);
 
-#else
+#else // CLOCK_MONOTONIC这个一定存在
     clock_gettime(CLOCK_MONOTONIC, &ts);
 #endif
 
@@ -323,7 +328,9 @@ ngx_http_cookie_time(u_char *buf, time_t t)
                        tm.ngx_tm_sec);
 }
 
-
+/*
+	根据time_t t获取ngx_tm_t也就是年月日时分秒
+*/
 void
 ngx_gmtime(time_t t, ngx_tm_t *tp)
 {

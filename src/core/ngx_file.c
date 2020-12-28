@@ -600,10 +600,10 @@ ngx_create_paths(ngx_cycle_t *cycle, ngx_uid_t user)
     ngx_err_t         err;
     ngx_uint_t        i;
     ngx_path_t      **path;
-
+	// 创建paths
     path = cycle->paths.elts;
     for (i = 0; i < cycle->paths.nelts; i++) {
-
+		// 创建dir
         if (ngx_create_dir(path[i]->name.data, 0700) == NGX_FILE_ERROR) {
             err = ngx_errno;
             if (err != NGX_EEXIST) {
@@ -621,13 +621,13 @@ ngx_create_paths(ngx_cycle_t *cycle, ngx_uid_t user)
 #if !(NGX_WIN32)
         {
         ngx_file_info_t   fi;
-
+		// 获取文件信息
         if (ngx_file_info(path[i]->name.data, &fi) == NGX_FILE_ERROR) {
             ngx_log_error(NGX_LOG_EMERG, cycle->log, ngx_errno,
                           ngx_file_info_n " \"%s\" failed", path[i]->name.data);
             return NGX_ERROR;
         }
-
+		// 将path的user_id改成配置的user
         if (fi.st_uid != user) {
             if (chown((const char *) path[i]->name.data, user, -1) == -1) {
                 ngx_log_error(NGX_LOG_EMERG, cycle->log, ngx_errno,
@@ -641,7 +641,7 @@ ngx_create_paths(ngx_cycle_t *cycle, ngx_uid_t user)
                                                   != (S_IRUSR|S_IWUSR|S_IXUSR))
         {
             fi.st_mode |= (S_IRUSR|S_IWUSR|S_IXUSR);
-
+			// 更新权限
             if (chmod((const char *) path[i]->name.data, fi.st_mode) == -1) {
                 ngx_log_error(NGX_LOG_EMERG, cycle->log, ngx_errno,
                               "chmod() \"%s\" failed", path[i]->name.data);

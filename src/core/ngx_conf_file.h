@@ -75,11 +75,17 @@
 
 
 struct ngx_command_s {
+	// command的名字
     ngx_str_t             name;
+    // command的类型, NGX_MAIN_CONF|NGX_EVENT_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1等
     ngx_uint_t            type;
+    // command的参数设置函数
     char               *(*set)(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+    // 如果是对于非CORE_CONF的情况,其下级会有二级的conf_ctx,这里的conf就是索引,比如:NGX_HTTP_LOC_CONF_OFFSET   offsetof(ngx_http_conf_ctx_t, loc_conf)
     ngx_uint_t            conf;
+    // 本命令在本配置文件中的偏移位置,比如:offsetof(ngx_event_conf_t, multi_accept),代表multi_accept在ngx_event_conf_t中的偏移
     ngx_uint_t            offset;
+    // 暂时没用到
     void                 *post;
 };
 
@@ -87,24 +93,33 @@ struct ngx_command_s {
 
 
 struct ngx_open_file_s {
+	// 打开文件fd
     ngx_fd_t              fd;
+    // 打开文件的name
     ngx_str_t             name;
-
+	// 刷新的函数指针
     void                (*flush)(ngx_open_file_t *file, ngx_log_t *log);
+    // 数据
     void                 *data;
 };
 
 
 typedef struct {
+	// 文件结构体句柄
     ngx_file_t            file;
+    // 文件缓存
     ngx_buf_t            *buffer;
+    // dump的文件缓存
     ngx_buf_t            *dump;
+    // 文件存在多少行
     ngx_uint_t            line;
 } ngx_conf_file_t;
 
 
 typedef struct {
+	// 文件name
     ngx_str_t             name;
+    // dump的buffer
     ngx_buf_t            *buffer;
 } ngx_conf_dump_t;
 
@@ -114,20 +129,29 @@ typedef char *(*ngx_conf_handler_pt)(ngx_conf_t *cf,
 
 
 struct ngx_conf_s {
+	// 配置名字
     char                 *name;
+    // 参数数组
     ngx_array_t          *args;
-
+	// cycle指针
     ngx_cycle_t          *cycle;
+	// 内存池指针
     ngx_pool_t           *pool;
+	// 临时内存池
     ngx_pool_t           *temp_pool;
+	// 文件句柄
     ngx_conf_file_t      *conf_file;
+    // log
     ngx_log_t            *log;
-
+	// 解析文件过程中的ctx句柄
     void                 *ctx;
+    // 解析的module类型
     ngx_uint_t            module_type;
+    // 解析的cmd类型
     ngx_uint_t            cmd_type;
-
+	// 配置文件解析函数指针
     ngx_conf_handler_pt   handler;
+    // 参数
     void                 *handler_conf;
 };
 
@@ -172,11 +196,11 @@ typedef struct {
 char * ngx_conf_deprecated(ngx_conf_t *cf, void *post, void *data);
 char *ngx_conf_check_num_bounds(ngx_conf_t *cf, void *post, void *data);
 
-
+// 获取ctx
 #define ngx_get_conf(conf_ctx, module)  conf_ctx[module.index]
 
 
-
+// 一些既定变量的初始化
 #define ngx_conf_init_value(conf, default)                                   \
     if (conf == NGX_CONF_UNSET) {                                            \
         conf = default;                                                      \

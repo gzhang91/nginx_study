@@ -14,13 +14,16 @@
 
 
 struct ngx_file_s {
+	// fd 描述符
     ngx_fd_t                   fd;
+    // 文件名字
     ngx_str_t                  name;
+    // 文件的stat信息
     ngx_file_info_t            info;
-
+	// 文件偏移量
     off_t                      offset;
     off_t                      sys_offset;
-
+	// log指针
     ngx_log_t                 *log;
 
 #if (NGX_THREADS || NGX_COMPAT)
@@ -29,12 +32,13 @@ struct ngx_file_s {
     void                      *thread_ctx;
     ngx_thread_task_t         *thread_task;
 #endif
-
+	// 存在aio
 #if (NGX_HAVE_FILE_AIO || NGX_COMPAT)
     ngx_event_aio_t           *aio;
 #endif
-
+	// valid标记
     unsigned                   valid_info:1;
+    // directio标记
     unsigned                   directio:1;
 };
 
@@ -48,16 +52,20 @@ typedef void (*ngx_path_loader_pt) (void *data);
 
 
 typedef struct {
+	// 路径name
     ngx_str_t                  name;
+    // 路径长度
     size_t                     len;
+    // path层级
     size_t                     level[NGX_MAX_PATH_LEVEL];
 
     ngx_path_manager_pt        manager;
     ngx_path_purger_pt         purger;
     ngx_path_loader_pt         loader;
     void                      *data;
-
+	
     u_char                    *conf_file;
+    // line数
     ngx_uint_t                 line;
 } ngx_path_t;
 
