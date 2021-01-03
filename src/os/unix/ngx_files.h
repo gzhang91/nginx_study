@@ -19,28 +19,41 @@ typedef ino_t                    ngx_file_uniq_t;
 
 
 typedef struct {
+	// name 文件映射名字
     u_char                      *name;
+    // 大小
     size_t                       size;
+    // 地址首地址
     void                        *addr;
+    // fd
     ngx_fd_t                     fd;
+    // log指针
     ngx_log_t                   *log;
 } ngx_file_mapping_t;
 
 
 typedef struct {
+	// DIR指针
     DIR                         *dir;
+    // dirent目录节点
     struct dirent               *de;
+    // stat文件信息
     struct stat                  info;
-
+	// type类型
     unsigned                     type:8;
+    //
     unsigned                     valid_info:1;
 } ngx_dir_t;
 
-
+// glob结构
 typedef struct {
+	// 大小
     size_t                       n;
+    // glob结构体
     glob_t                       pglob;
+    // 模式匹配串
     u_char                      *pattern;
+    // log指针
     ngx_log_t                   *log;
     ngx_uint_t                   test;
 } ngx_glob_t;

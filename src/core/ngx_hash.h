@@ -21,19 +21,24 @@ typedef struct {
 
 
 typedef struct {
+	// buckets
     ngx_hash_elt_t  **buckets;
+    // 大小
     ngx_uint_t        size;
 } ngx_hash_t;
 
 
 typedef struct {
+	// ngx_hash_t句柄
     ngx_hash_t        hash;
     void             *value;
 } ngx_hash_wildcard_t;
 
 
 typedef struct {
+	// key
     ngx_str_t         key;
+    // key的hash值
     ngx_uint_t        key_hash;
     void             *value;
 } ngx_hash_key_t;
@@ -43,21 +48,29 @@ typedef ngx_uint_t (*ngx_hash_key_pt) (u_char *data, size_t len);
 
 
 typedef struct {
+	// ngx_hash_t句柄
     ngx_hash_t            hash;
+    // 头匹配
     ngx_hash_wildcard_t  *wc_head;
+    // 尾匹配
     ngx_hash_wildcard_t  *wc_tail;
 } ngx_hash_combined_t;
 
 
 typedef struct {
+	// hash指针
     ngx_hash_t       *hash;
+    // hash key函数
     ngx_hash_key_pt   key;
-
+	// 最大size
     ngx_uint_t        max_size;
+    // bucket size
     ngx_uint_t        bucket_size;
-
+	// name
     char             *name;
+    // 内存池
     ngx_pool_t       *pool;
+    // 临时内存池
     ngx_pool_t       *temp_pool;
 } ngx_hash_init_t;
 
@@ -73,26 +86,35 @@ typedef struct {
 
 
 typedef struct {
+	// hash size
     ngx_uint_t        hsize;
-
+	// 内存池
     ngx_pool_t       *pool;
+    // 临时内存池
     ngx_pool_t       *temp_pool;
-
+	// keys数组
     ngx_array_t       keys;
+    // hash key数组
     ngx_array_t      *keys_hash;
-
+	// dns head匹配数组
     ngx_array_t       dns_wc_head;
+    // head_hash指针数组
     ngx_array_t      *dns_wc_head_hash;
-
+	// dns tail匹配数组
     ngx_array_t       dns_wc_tail;
+    // tail_hash指针数组
     ngx_array_t      *dns_wc_tail_hash;
 } ngx_hash_keys_arrays_t;
 
 
 typedef struct {
+	// hash值
     ngx_uint_t        hash;
+    // key字符串
     ngx_str_t         key;
+    // value字符串
     ngx_str_t         value;
+    // 小写的key
     u_char           *lowcase_key;
 } ngx_table_elt_t;
 

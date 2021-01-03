@@ -307,18 +307,21 @@ ngx_pcalloc(ngx_pool_t *pool, size_t size)
     return p;
 }
 
-
+/*
+	从内存池中的cleanup中清理链表申请一个清理节点
+*/
 ngx_pool_cleanup_t *
 ngx_pool_cleanup_add(ngx_pool_t *p, size_t size)
 {
     ngx_pool_cleanup_t  *c;
-
+	// 在内存池中申请ngx_pool_cleanup_t结构对象
     c = ngx_palloc(p, sizeof(ngx_pool_cleanup_t));
     if (c == NULL) {
         return NULL;
     }
-
+	// size==0
     if (size) {
+    	// 在内存池中size大小内存
         c->data = ngx_palloc(p, size);
         if (c->data == NULL) {
             return NULL;
@@ -329,6 +332,7 @@ ngx_pool_cleanup_add(ngx_pool_t *p, size_t size)
     }
 
     c->handler = NULL;
+    // 将c加入到p的cleanup链表中
     c->next = p->cleanup;
 
     p->cleanup = c;

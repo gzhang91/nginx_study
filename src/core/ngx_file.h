@@ -22,6 +22,7 @@ struct ngx_file_s {
     ngx_file_info_t            info;
 	// 文件偏移量
     off_t                      offset;
+    // 上次处理的的offset
     off_t                      sys_offset;
 	// log指针
     ngx_log_t                 *log;
@@ -56,7 +57,7 @@ typedef struct {
     ngx_str_t                  name;
     // 路径长度
     size_t                     len;
-    // path层级
+    // path层级,每个/代表一层
     size_t                     level[NGX_MAX_PATH_LEVEL];
 
     ngx_path_manager_pt        manager;
@@ -77,41 +78,55 @@ typedef struct {
 
 
 typedef struct {
+	// 文件句柄
     ngx_file_t                 file;
+    // 文件偏移
     off_t                      offset;
+	// 文件路径
     ngx_path_t                *path;
+    // 内存池指针
     ngx_pool_t                *pool;
     char                      *warn;
-
+	// acess标记
     ngx_uint_t                 access;
-
+	// log_level
     unsigned                   log_level:8;
+    // persistent标记
     unsigned                   persistent:1;
+    // clean标记
     unsigned                   clean:1;
     unsigned                   thread_write:1;
 } ngx_temp_file_t;
 
 
 typedef struct {
+	// acess标记
     ngx_uint_t                 access;
+    // path_acess标记
     ngx_uint_t                 path_access;
+    // time时间戳
     time_t                     time;
+    // fd描述符
     ngx_fd_t                   fd;
-
+	// 创建path标记
     unsigned                   create_path:1;
+    // delete 标记
     unsigned                   delete_file:1;
-
+	// log指针
     ngx_log_t                 *log;
 } ngx_ext_rename_file_t;
 
 
 typedef struct {
+	// 文件大小
     off_t                      size;
+    // 缓存大小
     size_t                     buf_size;
-
+	// acess标记
     ngx_uint_t                 access;
+    // 时间戳
     time_t                     time;
-
+	// log指针
     ngx_log_t                 *log;
 } ngx_copy_file_t;
 
@@ -122,9 +137,13 @@ typedef ngx_int_t (*ngx_tree_init_handler_pt) (void *ctx, void *prev);
 typedef ngx_int_t (*ngx_tree_handler_pt) (ngx_tree_ctx_t *ctx, ngx_str_t *name);
 
 struct ngx_tree_ctx_s {
+	// 文件大小
     off_t                      size;
+    // fs大小
     off_t                      fs_size;
+    // acess值
     ngx_uint_t                 access;
+    // 更改时间
     time_t                     mtime;
 
     ngx_tree_init_handler_pt   init_handler;
@@ -134,8 +153,9 @@ struct ngx_tree_ctx_s {
     ngx_tree_handler_pt        spec_handler;
 
     void                      *data;
+    // alloc大小
     size_t                     alloc;
-
+	// log指针
     ngx_log_t                 *log;
 };
 

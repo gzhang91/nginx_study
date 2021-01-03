@@ -13,12 +13,14 @@ ngx_uint_t  ngx_pagesize;
 ngx_uint_t  ngx_pagesize_shift;
 ngx_uint_t  ngx_cacheline_size;
 
-
+/*
+	分配size堆内存
+*/
 void *
 ngx_alloc(size_t size, ngx_log_t *log)
 {
     void  *p;
-
+	// malloc分配size堆内存
     p = malloc(size);
     if (p == NULL) {
         ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,

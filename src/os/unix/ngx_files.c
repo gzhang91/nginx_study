@@ -288,7 +288,9 @@ ngx_open_tempfile(u_char *name, ngx_uint_t persistent, ngx_uint_t access)
     return fd;
 }
 
-
+/*
+	将chain里面的缓冲写入到file中
+*/
 ssize_t
 ngx_write_chain_to_file(ngx_file_t *file, ngx_chain_t *cl, off_t offset,
     ngx_pool_t *pool)
@@ -298,7 +300,7 @@ ngx_write_chain_to_file(ngx_file_t *file, ngx_chain_t *cl, off_t offset,
     struct iovec   iovs[NGX_IOVS_PREALLOCATE];
 
     /* use pwrite() if there is the only buf in a chain */
-
+	// 如果cl->next为NULL,代表没有后续节点,直接将cl的buf写入到文件中,偏移地址为offset
     if (cl->next == NULL) {
         return ngx_write_file(file, cl->buf->pos,
                               (size_t) (cl->buf->last - cl->buf->pos),
@@ -312,21 +314,23 @@ ngx_write_chain_to_file(ngx_file_t *file, ngx_chain_t *cl, off_t offset,
 
     do {
         /* create the iovec and coalesce the neighbouring bufs */
+        // 将cl写入到vec中,返回的cl代表已经处理的64个节点之后的节点
         cl = ngx_chain_to_iovec(&vec, cl);
 
         /* use pwrite() if there is the only iovec buffer */
-
+		// 如果vec只有一个元素
         if (vec.count == 1) {
+        	// 直接写入到文件
             n = ngx_write_file(file, (u_char *) iovs[0].iov_base,
                                iovs[0].iov_len, offset);
 
             if (n == NGX_ERROR) {
                 return n;
             }
-
+			// 返回写入到文件的大小
             return total + n;
         }
-
+		// 调用writev聚写到file中
         n = ngx_writev_file(file, &vec, offset);
 
         if (n == NGX_ERROR) {
@@ -341,7 +345,9 @@ ngx_write_chain_to_file(ngx_file_t *file, ngx_chain_t *cl, off_t offset,
     return total;
 }
 
-
+/*
+	将cl写入到iovec结构中
+*/
 static ngx_chain_t *
 ngx_chain_to_iovec(ngx_iovec_t *vec, ngx_chain_t *cl)
 {
@@ -354,29 +360,30 @@ ngx_chain_to_iovec(ngx_iovec_t *vec, ngx_chain_t *cl)
     prev = NULL;
     total = 0;
     n = 0;
-
+	// 循环从chain中抽取节点获取数据
     for ( /* void */ ; cl; cl = cl->next) {
-
+		// 如果是special的buf,不处理
         if (ngx_buf_special(cl->buf)) {
             continue;
         }
-
+		// buf的size
         size = cl->buf->last - cl->buf->pos;
-
+		// 判断prev和cl->buf->pos相等,直接累加iov->iov_len长度
         if (prev == cl->buf->pos) {
             iov->iov_len += size;
 
         } else {
+        	// 如果nalloc==n,表示处理完成
             if (n == vec->nalloc) {
                 break;
             }
-
+			// 申请vec->iovs[nalloc]个vec数组
             iov = &vec->iovs[n++];
 
             iov->iov_base = (void *) cl->buf->pos;
             iov->iov_len = size;
         }
-
+		// prev设置为pos+size
         prev = cl->buf->pos + size;
         total += size;
     }
@@ -387,7 +394,9 @@ ngx_chain_to_iovec(ngx_iovec_t *vec, ngx_chain_t *cl)
     return cl;
 }
 
-
+/*
+	聚写到file中
+*/
 static ssize_t
 ngx_writev_file(ngx_file_t *file, ngx_iovec_t *vec, off_t offset)
 {
@@ -396,13 +405,13 @@ ngx_writev_file(ngx_file_t *file, ngx_iovec_t *vec, off_t offset)
 
     ngx_log_debug3(NGX_LOG_DEBUG_CORE, file->log, 0,
                    "writev: %d, %uz, %O", file->fd, vec->size, offset);
-
+//如果存在pwritev
 #if (NGX_HAVE_PWRITEV)
 
 eintr:
-
+	// 调用pwritev将vec写入到fd中
     n = pwritev(file->fd, vec->iovs, vec->count, offset);
-
+	// 出错
     if (n == -1) {
         err = ngx_errno;
 
@@ -425,19 +434,20 @@ eintr:
     }
 
 #else
-
+	// 如果sys_offset != offset,使用lseek便宜到offset处
     if (file->sys_offset != offset) {
+    	// lseek到offset
         if (lseek(file->fd, offset, SEEK_SET) == -1) {
             ngx_log_error(NGX_LOG_CRIT, file->log, ngx_errno,
                           "lseek() \"%s\" failed", file->name.data);
             return NGX_ERROR;
         }
-
+		// sys_offset记录offset
         file->sys_offset = offset;
     }
 
 eintr:
-
+	// 调用writev
     n = writev(file->fd, vec->iovs, vec->count);
 
     if (n == -1) {
@@ -460,11 +470,11 @@ eintr:
                       file->name.data, n, vec->size);
         return NGX_ERROR;
     }
-
+	// 更新sys_offset
     file->sys_offset += n;
 
 #endif
-
+	// 更新offset
     file->offset += n;
 
     return n;
@@ -596,7 +606,9 @@ eintr:
 
 #endif /* NGX_THREADS */
 
-
+/*
+	设置文件fd的access time和modification time
+*/
 ngx_int_t
 ngx_set_file_time(u_char *name, ngx_fd_t fd, time_t s)
 {
@@ -606,7 +618,8 @@ ngx_set_file_time(u_char *name, ngx_fd_t fd, time_t s)
     tv[0].tv_usec = 0;
     tv[1].tv_sec = s;
     tv[1].tv_usec = 0;
-
+	// change file last access and modification times更改文件的最后acess时间和更改时间
+	// times[0] specifies the new access time, and times[1] specifies the new modification time. 
     if (utimes((char *) name, tv) != -1) {
         return NGX_OK;
     }
@@ -614,10 +627,12 @@ ngx_set_file_time(u_char *name, ngx_fd_t fd, time_t s)
     return NGX_ERROR;
 }
 
-
+/*
+	创建映射文件
+*/
 ngx_int_t
 ngx_create_file_mapping(ngx_file_mapping_t *fm)
-{
+{	// 打开以name为名字的fd
     fm->fd = ngx_open_file(fm->name, NGX_FILE_RDWR, NGX_FILE_TRUNCATE,
                            NGX_FILE_DEFAULT_ACCESS);
 
@@ -626,13 +641,13 @@ ngx_create_file_mapping(ngx_file_mapping_t *fm)
                       ngx_open_file_n " \"%s\" failed", fm->name);
         return NGX_ERROR;
     }
-
+	// ftruncate 截断fd文件到fm->size大小
     if (ftruncate(fm->fd, fm->size) == -1) {
         ngx_log_error(NGX_LOG_CRIT, fm->log, ngx_errno,
                       "ftruncate() \"%s\" failed", fm->name);
         goto failed;
     }
-
+	// fm->addr映射的地址
     fm->addr = mmap(NULL, fm->size, PROT_READ|PROT_WRITE, MAP_SHARED,
                     fm->fd, 0);
     if (fm->addr != MAP_FAILED) {
@@ -643,7 +658,7 @@ ngx_create_file_mapping(ngx_file_mapping_t *fm)
                   "mmap(%uz) \"%s\" failed", fm->size, fm->name);
 
 failed:
-
+	// 关闭文件
     if (ngx_close_file(fm->fd) == NGX_FILE_ERROR) {
         ngx_log_error(NGX_LOG_ALERT, fm->log, ngx_errno,
                       ngx_close_file_n " \"%s\" failed", fm->name);
@@ -652,25 +667,29 @@ failed:
     return NGX_ERROR;
 }
 
-
+/*
+	关闭映射文件
+*/
 void
 ngx_close_file_mapping(ngx_file_mapping_t *fm)
-{
+{	// munmap addr地址
     if (munmap(fm->addr, fm->size) == -1) {
         ngx_log_error(NGX_LOG_CRIT, fm->log, ngx_errno,
                       "munmap(%uz) \"%s\" failed", fm->size, fm->name);
     }
-
+	// close fd文件
     if (ngx_close_file(fm->fd) == NGX_FILE_ERROR) {
         ngx_log_error(NGX_LOG_ALERT, fm->log, ngx_errno,
                       ngx_close_file_n " \"%s\" failed", fm->name);
     }
 }
 
-
+/*
+	打开以name名字的dir,返回到dir
+*/
 ngx_int_t
 ngx_open_dir(ngx_str_t *name, ngx_dir_t *dir)
-{
+{	// 打开以name的dir
     dir->dir = opendir((const char *) name->data);
 
     if (dir->dir == NULL) {
@@ -682,10 +701,12 @@ ngx_open_dir(ngx_str_t *name, ngx_dir_t *dir)
     return NGX_OK;
 }
 
+/*
 
+*/
 ngx_int_t
 ngx_read_dir(ngx_dir_t *dir)
-{
+{	// 读取readdir,返回节点struct dirent
     dir->de = readdir(dir->dir);
 
     if (dir->de) {
@@ -700,12 +721,14 @@ ngx_read_dir(ngx_dir_t *dir)
     return NGX_ERROR;
 }
 
-
+/*
+	打开glob对象
+*/
 ngx_int_t
 ngx_open_glob(ngx_glob_t *gl)
 {
     int  n;
-
+	// glob打开pattern
     n = glob((char *) gl->pattern, 0, NULL, &gl->pglob);
 
     if (n == 0) {
@@ -723,7 +746,9 @@ ngx_open_glob(ngx_glob_t *gl)
     return NGX_ERROR;
 }
 
-
+/*
+	读取glob
+*/
 ngx_int_t
 ngx_read_glob(ngx_glob_t *gl, ngx_str_t *name)
 {
@@ -747,14 +772,18 @@ ngx_read_glob(ngx_glob_t *gl, ngx_str_t *name)
     return NGX_DONE;
 }
 
-
+/*
+	关闭glob
+*/
 void
 ngx_close_glob(ngx_glob_t *gl)
 {
     globfree(&gl->pglob);
 }
 
-
+/*
+	设置fd的文件锁
+*/
 ngx_err_t
 ngx_trylock_fd(ngx_fd_t fd)
 {
@@ -763,7 +792,7 @@ ngx_trylock_fd(ngx_fd_t fd)
     ngx_memzero(&fl, sizeof(struct flock));
     fl.l_type = F_WRLCK;
     fl.l_whence = SEEK_SET;
-
+	// fcntl使用F_SETLK,
     if (fcntl(fd, F_SETLK, &fl) == -1) {
         return ngx_errno;
     }
@@ -771,7 +800,9 @@ ngx_trylock_fd(ngx_fd_t fd)
     return 0;
 }
 
-
+/*
+	设置fd的文件锁,如果有冲突,就等待
+*/
 ngx_err_t
 ngx_lock_fd(ngx_fd_t fd)
 {
@@ -780,7 +811,7 @@ ngx_lock_fd(ngx_fd_t fd)
     ngx_memzero(&fl, sizeof(struct flock));
     fl.l_type = F_WRLCK;
     fl.l_whence = SEEK_SET;
-
+	// 如果有冲突,等待
     if (fcntl(fd, F_SETLKW, &fl) == -1) {
         return ngx_errno;
     }
@@ -788,7 +819,9 @@ ngx_lock_fd(ngx_fd_t fd)
     return 0;
 }
 
-
+/*
+	解锁
+*/
 ngx_err_t
 ngx_unlock_fd(ngx_fd_t fd)
 {
@@ -797,7 +830,7 @@ ngx_unlock_fd(ngx_fd_t fd)
     ngx_memzero(&fl, sizeof(struct flock));
     fl.l_type = F_UNLCK;
     fl.l_whence = SEEK_SET;
-
+	
     if (fcntl(fd, F_SETLK, &fl) == -1) {
         return  ngx_errno;
     }
@@ -805,14 +838,17 @@ ngx_unlock_fd(ngx_fd_t fd)
     return 0;
 }
 
-
+// 如果存在POSIX_FADVISE
 #if (NGX_HAVE_POSIX_FADVISE) && !(NGX_HAVE_F_READAHEAD)
-
+/*
+	预读文件内容
+*/
 ngx_int_t
 ngx_read_ahead(ngx_fd_t fd, size_t n)
 {
     int  err;
-
+	// posix_fadvise是linux上对文件进行预取的系统调用
+	// POSIX_FADV_SEQUENTIAL 将要进行顺序操作         ,设预读大小为默认值的2 倍
     err = posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
 
     if (err == 0) {
@@ -825,66 +861,74 @@ ngx_read_ahead(ngx_fd_t fd, size_t n)
 
 #endif
 
-
+// 如果存在O_DIRECT
 #if (NGX_HAVE_O_DIRECT)
-
+/*
+	设置fd的O_DIRECT
+*/
 ngx_int_t
 ngx_directio_on(ngx_fd_t fd)
 {
     int  flags;
-
+	// 得到flags
     flags = fcntl(fd, F_GETFL);
 
     if (flags == -1) {
         return NGX_FILE_ERROR;
     }
-
+	// 设置flag | O_DIRECT
     return fcntl(fd, F_SETFL, flags | O_DIRECT);
 }
 
-
+/*
+	取消文件fd的O_DIRECT
+*/
 ngx_int_t
 ngx_directio_off(ngx_fd_t fd)
 {
     int  flags;
-
+	// 获取flags
     flags = fcntl(fd, F_GETFL);
 
     if (flags == -1) {
         return NGX_FILE_ERROR;
     }
-
+	// 设置SETFL
     return fcntl(fd, F_SETFL, flags & ~O_DIRECT);
 }
 
 #endif
 
-
+// 如果存在STATFS
 #if (NGX_HAVE_STATFS)
-
+/*
+	获取fs.f_bsize(transfer block size)
+*/
 size_t
 ngx_fs_bsize(u_char *name)
 {
     struct statfs  fs;
-
+	// statfs, fstatfs - get filesystem statistics
     if (statfs((char *) name, &fs) == -1) {
         return 512;
     }
-
+	// 如果不是512的整数倍,返回512
     if ((fs.f_bsize % 512) != 0) {
         return 512;
     }
 
     return (size_t) fs.f_bsize;
 }
-
+// 如果存在STATVFS
 #elif (NGX_HAVE_STATVFS)
-
+/*
+	获取文件的Fragment size
+*/
 size_t
 ngx_fs_bsize(u_char *name)
 {
     struct statvfs  fs;
-
+	// statvfs, fstatvfs - get filesystem statistics
     if (statvfs((char *) name, &fs) == -1) {
         return 512;
     }
@@ -897,7 +941,9 @@ ngx_fs_bsize(u_char *name)
 }
 
 #else
-
+/*
+	默认bsize
+*/
 size_t
 ngx_fs_bsize(u_char *name)
 {

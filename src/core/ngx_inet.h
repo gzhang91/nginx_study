@@ -33,19 +33,25 @@
 
 
 typedef union {
+	// 公共地址
     struct sockaddr           sockaddr;
+    // ipv4地址
     struct sockaddr_in        sockaddr_in;
 #if (NGX_HAVE_INET6)
+	// ipv6地址
     struct sockaddr_in6       sockaddr_in6;
 #endif
 #if (NGX_HAVE_UNIX_DOMAIN)
+	// unix地址
     struct sockaddr_un        sockaddr_un;
 #endif
 } ngx_sockaddr_t;
 
 
 typedef struct {
+	// addr地址
     in_addr_t                 addr;
+    // mask
     in_addr_t                 mask;
 } ngx_in_cidr_t;
 
@@ -53,7 +59,9 @@ typedef struct {
 #if (NGX_HAVE_INET6)
 
 typedef struct {
+	// ipv6 addr
     struct in6_addr           addr;
+    // ipv6 mask
     struct in6_addr           mask;
 } ngx_in6_cidr_t;
 
@@ -61,10 +69,13 @@ typedef struct {
 
 
 typedef struct {
+	// family
     ngx_uint_t                family;
     union {
+    	// ipv4 cidr
         ngx_in_cidr_t         in;
 #if (NGX_HAVE_INET6)
+		// ipv6 cidr
         ngx_in6_cidr_t        in6;
 #endif
     } u;
@@ -72,6 +83,7 @@ typedef struct {
 
 
 typedef struct {
+	// struct sockaddr
     struct sockaddr          *sockaddr;
     socklen_t                 socklen;
     ngx_str_t                 name;

@@ -62,9 +62,13 @@ ngx_chain_t *ngx_udp_unix_sendmsg_chain(ngx_connection_t *c, ngx_chain_t *in,
 
 
 typedef struct {
+	// struct iovec
     struct iovec  *iovs;
+    // 已经使用的个数
     ngx_uint_t     count;
+    // 内存总数
     size_t         size;
+    // alloc的个数
     ngx_uint_t     nalloc;
 } ngx_iovec_t;
 

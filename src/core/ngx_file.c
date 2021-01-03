@@ -16,14 +16,16 @@ static ngx_atomic_t   temp_number = 0;
 ngx_atomic_t         *ngx_temp_number = &temp_number;
 ngx_atomic_int_t      ngx_random_number = 123456;
 
-
+/*
+	根据prefix和name获取绝对路径
+*/
 ngx_int_t
 ngx_get_full_name(ngx_pool_t *pool, ngx_str_t *prefix, ngx_str_t *name)
 {
     size_t      len;
     u_char     *p, *n;
     ngx_int_t   rc;
-
+	// 判断name是否为绝对路径
     rc = ngx_test_full_name(name);
 
     if (rc == NGX_OK) {
@@ -54,13 +56,15 @@ ngx_get_full_name(ngx_pool_t *pool, ngx_str_t *prefix, ngx_str_t *name)
     return NGX_OK;
 }
 
-
+/*
+	判断name是否为绝对路径
+*/
 static ngx_int_t
 ngx_test_full_name(ngx_str_t *name)
 {
 #if (NGX_WIN32)
     u_char  c0, c1;
-
+	// c0表示盘符
     c0 = name->data[0];
 
     if (name->len < 2) {
@@ -70,7 +74,7 @@ ngx_test_full_name(ngx_str_t *name)
 
         return NGX_DECLINED;
     }
-
+	// c1表示":"
     c1 = name->data[1];
 
     if (c1 == ':') {
@@ -94,7 +98,7 @@ ngx_test_full_name(ngx_str_t *name)
     return NGX_DECLINED;
 
 #else
-
+	// 第一个字符是否为/
     if (name->data[0] == '/') {
         return NGX_OK;
     }
@@ -111,6 +115,7 @@ ngx_write_chain_to_temp_file(ngx_temp_file_t *tf, ngx_chain_t *chain)
     ngx_int_t  rc;
 
     if (tf->file.fd == NGX_INVALID_FILE) {
+    	// 创建临时文件
         rc = ngx_create_temp_file(&tf->file, tf->path, tf->pool,
                                   tf->persistent, tf->clean, tf->access);
 
@@ -123,7 +128,7 @@ ngx_write_chain_to_temp_file(ngx_temp_file_t *tf, ngx_chain_t *chain)
                           tf->warn, &tf->file.name);
         }
     }
-
+// 如果支持多线程
 #if (NGX_THREADS && NGX_HAVE_PWRITEV)
 
     if (tf->thread_write) {
@@ -132,11 +137,13 @@ ngx_write_chain_to_temp_file(ngx_temp_file_t *tf, ngx_chain_t *chain)
     }
 
 #endif
-
+	// 将chain写入到file中
     return ngx_write_chain_to_file(&tf->file, chain, tf->offset, tf->pool);
 }
 
-
+/*
+	创建临时文件
+*/
 ngx_int_t
 ngx_create_temp_file(ngx_file_t *file, ngx_path_t *path, ngx_pool_t *pool,
     ngx_uint_t persistent, ngx_uint_t clean, ngx_uint_t access)
@@ -149,20 +156,22 @@ ngx_create_temp_file(ngx_file_t *file, ngx_path_t *path, ngx_pool_t *pool,
     ngx_uint_t                prefix;
     ngx_pool_cleanup_t       *cln;
     ngx_pool_cleanup_file_t  *clnf;
-
+	// 赋值name
     if (file->name.len) {
+    // 文件名
         name = file->name;
         levels = 0;
         prefix = 1;
 
     } else {
+    // 路径名
         name = path->name;
         levels = path->len;
         prefix = 0;
     }
 
     file->name.len = name.len + 1 + levels + 10;
-
+	// 从内存池中申请name.len+1大小
     file->name.data = ngx_pnalloc(pool, file->name.len + 1);
     if (file->name.data == NULL) {
         return NGX_ERROR;
@@ -175,15 +184,16 @@ ngx_create_temp_file(ngx_file_t *file, ngx_path_t *path, ngx_pool_t *pool,
 #endif
 
     p = ngx_cpymem(file->name.data, name.data, name.len);
-
+	
     if (prefix) {
         *p = '.';
     }
-
+	// 偏移p指针
     p += 1 + levels;
-
+	// 临时值+1,得到一个随机值n
     n = (uint32_t) ngx_next_temp_number(0);
-
+	// 从内存池中获取ngx_pool_cleanup_file_t结构体对象
+	// ngx_pool_cleanup_t *cln;
     cln = ngx_pool_cleanup_add(pool, sizeof(ngx_pool_cleanup_file_t));
     if (cln == NULL) {
         return NGX_ERROR;
@@ -193,20 +203,22 @@ ngx_create_temp_file(ngx_file_t *file, ngx_path_t *path, ngx_pool_t *pool,
         (void) ngx_sprintf(p, "%010uD%Z", n);
 
         if (!prefix) {
+        	// path是路径,name是文件名.保存到file->name中
             ngx_create_hashed_filename(path, file->name.data, file->name.len);
         }
 
         ngx_log_debug1(NGX_LOG_DEBUG_CORE, file->log, 0,
                        "hashed path: %s", file->name.data);
-
+		// 打开文件
         file->fd = ngx_open_tempfile(file->name.data, persistent, access);
 
         ngx_log_debug1(NGX_LOG_DEBUG_CORE, file->log, 0,
                        "temp fd:%d", file->fd);
-
+		// fd打开成功
         if (file->fd != NGX_INVALID_FILE) {
-
+			// 如果有clean标记,cln->handler赋值为ngx_pool_delete_file,否则赋值为ngx_pool_cleanup_file
             cln->handler = clean ? ngx_pool_delete_file : ngx_pool_cleanup_file;
+            // cln->data为 ngx_pool_cleanup_file_t对象
             clnf = cln->data;
 
             clnf->fd = file->fd;
@@ -229,25 +241,28 @@ ngx_create_temp_file(ngx_file_t *file, ngx_path_t *path, ngx_pool_t *pool,
                           file->name.data);
             return NGX_ERROR;
         }
-
+		// 创建目录
         if (ngx_create_path(file, path) == NGX_ERROR) {
             return NGX_ERROR;
         }
     }
 }
 
-
+/*
+	生成整个路径名
+*/
 void
 ngx_create_hashed_filename(ngx_path_t *path, u_char *file, size_t len)
 {
     size_t      i, level;
     ngx_uint_t  n;
-
+	// 文件路径名+1
     i = path->name.len + 1;
-
+	// 文件路径名 + path->len
     file[path->name.len + path->len]  = '/';
-
+	// 路径三层
     for (n = 0; n < NGX_MAX_PATH_LEVEL; n++) {
+    	// level的大小
         level = path->level[n];
 
         if (level == 0) {
@@ -261,7 +276,9 @@ ngx_create_hashed_filename(ngx_path_t *path, u_char *file, size_t len)
     }
 }
 
-
+/*
+	创建级联目录
+*/
 ngx_int_t
 ngx_create_path(ngx_file_t *file, ngx_path_t *path)
 {
@@ -277,12 +294,12 @@ ngx_create_path(ngx_file_t *file, ngx_path_t *path)
         }
 
         pos += path->level[i] + 1;
-
+		// 临时将data[pos]赋值为0
         file->name.data[pos] = '\0';
 
         ngx_log_debug1(NGX_LOG_DEBUG_CORE, file->log, 0,
                        "temp file: \"%s\"", file->name.data);
-
+		// 创建目录
         if (ngx_create_dir(file->name.data, 0700) == NGX_FILE_ERROR) {
             err = ngx_errno;
             if (err != NGX_EEXIST) {
@@ -292,14 +309,16 @@ ngx_create_path(ngx_file_t *file, ngx_path_t *path)
                 return NGX_ERROR;
             }
         }
-
+		// 将data[pos]赋值为"/"
         file->name.data[pos] = '/';
     }
 
     return NGX_OK;
 }
 
-
+/*
+	创建全路径,相当于mkdir -p
+*/
 ngx_err_t
 ngx_create_full_path(u_char *dir, ngx_uint_t access)
 {
@@ -320,9 +339,9 @@ ngx_create_full_path(u_char *dir, ngx_uint_t access)
         if (ch != '/') {
             continue;
         }
-
+		// 设置临时*p=0
         *p = '\0';
-
+		// 创建dir
         if (ngx_create_dir(dir, access) == NGX_FILE_ERROR) {
             err = ngx_errno;
 
@@ -336,27 +355,31 @@ ngx_create_full_path(u_char *dir, ngx_uint_t access)
                 return err;
             }
         }
-
+		// 重新设置回/
         *p = '/';
     }
 
     return err;
 }
 
-
+/*
+	在ngx_temp_number加上一个临时值
+*/
 ngx_atomic_uint_t
 ngx_next_temp_number(ngx_uint_t collision)
 {
     ngx_atomic_uint_t  n, add;
 
     add = collision ? ngx_random_number : 1;
-
+	// 原子变量ngx_temp_number
     n = ngx_atomic_fetch_add(ngx_temp_number, add);
 
     return n + add;
 }
 
-
+/*
+	command的path的设置函数
+*/
 char *
 ngx_conf_set_path_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
@@ -366,26 +389,26 @@ ngx_conf_set_path_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_str_t   *value;
     ngx_uint_t   i, n;
     ngx_path_t  *path, **slot;
-
+	// slot 相当于个conf
     slot = (ngx_path_t **) (p + cmd->offset);
 
     if (*slot) {
         return "is duplicate";
     }
-
+	// 在内存池中申请ngx_path_t
     path = ngx_pcalloc(cf->pool, sizeof(ngx_path_t));
     if (path == NULL) {
         return NGX_CONF_ERROR;
     }
-
+	// value值
     value = cf->args->elts;
-
+	// value[1]为path->name
     path->name = value[1];
-
+	// 判断path->name为dir
     if (path->name.data[path->name.len - 1] == '/') {
         path->name.len--;
     }
-
+	// 获取路径全路径名
     if (ngx_conf_full_name(cf->cycle, &path->name, 0) != NGX_OK) {
         return NGX_CONF_ERROR;
     }
@@ -408,7 +431,7 @@ ngx_conf_set_path_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     *slot = path;
-
+	// 将slot设置到cf->cycle->paths中
     if (ngx_add_path(cf, slot) == NGX_ERROR) {
         return NGX_CONF_ERROR;
     }
@@ -416,7 +439,9 @@ ngx_conf_set_path_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
-
+/*
+	路径merge合并
+*/
 char *
 ngx_conf_merge_path_value(ngx_conf_t *cf, ngx_path_t **path, ngx_path_t *prev,
     ngx_path_init_t *init)
@@ -438,7 +463,7 @@ ngx_conf_merge_path_value(ngx_conf_t *cf, ngx_path_t **path, ngx_path_t *prev,
     }
 
     (*path)->name = init->name;
-
+	// 获取路径全路径名
     if (ngx_conf_full_name(cf->cycle, &(*path)->name, 0) != NGX_OK) {
         return NGX_CONF_ERROR;
     }
@@ -447,7 +472,7 @@ ngx_conf_merge_path_value(ngx_conf_t *cf, ngx_path_t **path, ngx_path_t *prev,
         (*path)->level[i] = init->level[i];
         (*path)->len += init->level[i] + (init->level[i] ? 1 : 0);
     }
-
+	// 将path添加到cf->cycle->paths中
     if (ngx_add_path(cf, path) != NGX_OK) {
         return NGX_CONF_ERROR;
     }
@@ -455,7 +480,9 @@ ngx_conf_merge_path_value(ngx_conf_t *cf, ngx_path_t **path, ngx_path_t *prev,
     return NGX_CONF_OK;
 }
 
-
+/*
+	设置用户的acess
+*/
 char *
 ngx_conf_set_access_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
@@ -521,7 +548,9 @@ invalid:
     return NGX_CONF_ERROR;
 }
 
-
+/*
+	将slot加入到cf->cycle->paths array中
+*/
 ngx_int_t
 ngx_add_path(ngx_conf_t *cf, ngx_path_t **slot)
 {
@@ -532,6 +561,7 @@ ngx_add_path(ngx_conf_t *cf, ngx_path_t **slot)
 
     p = cf->cycle->paths.elts;
     for (i = 0; i < cf->cycle->paths.nelts; i++) {
+    	// 先判断len是否匹配,再根据name进行匹配
         if (p[i]->name.len == path->name.len
             && ngx_strcmp(p[i]->name.data, path->name.data) == 0)
         {
@@ -544,6 +574,7 @@ ngx_add_path(ngx_conf_t *cf, ngx_path_t **slot)
             }
 
             for (n = 0; n < NGX_MAX_PATH_LEVEL; n++) {
+            	// level判断
                 if (p[i]->level[n] != path->level[n]) {
                     if (path->conf_file == NULL) {
                         if (p[i]->conf_file == NULL) {
@@ -571,18 +602,18 @@ ngx_add_path(ngx_conf_t *cf, ngx_path_t **slot)
                                       &p[i]->name, p[i]->conf_file, p[i]->line);
                     return NGX_ERROR;
                 }
-
+				// 表示level结束
                 if (p[i]->level[n] == 0) {
                     break;
                 }
             }
-
+			// 将*slot插入到空闲的cf->cycle->paths中
             *slot = p[i];
 
             return NGX_OK;
         }
     }
-
+	// 重新申请一个节点,将*slot放入
     p = ngx_array_push(&cf->cycle->paths);
     if (p == NULL) {
         return NGX_ERROR;
@@ -593,7 +624,9 @@ ngx_add_path(ngx_conf_t *cf, ngx_path_t **slot)
     return NGX_OK;
 }
 
-
+/*
+	创建path目录
+*/
 ngx_int_t
 ngx_create_paths(ngx_cycle_t *cycle, ngx_uid_t user)
 {
@@ -655,7 +688,9 @@ ngx_create_paths(ngx_cycle_t *cycle, ngx_uid_t user)
     return NGX_OK;
 }
 
-
+/*
+	重命名文件
+*/
 ngx_int_t
 ngx_ext_rename_file(ngx_str_t *src, ngx_str_t *to, ngx_ext_rename_file_t *ext)
 {
@@ -664,8 +699,9 @@ ngx_ext_rename_file(ngx_str_t *src, ngx_str_t *to, ngx_ext_rename_file_t *ext)
     ngx_copy_file_t   cf;
 
 #if !(NGX_WIN32)
-
+	// 如果存在access
     if (ext->access) {
+    	// 使用chmod改变access
         if (ngx_change_file_access(src->data, ext->access) == NGX_FILE_ERROR) {
             ngx_log_error(NGX_LOG_CRIT, ext->log, ngx_errno,
                           ngx_change_file_access_n " \"%s\" failed", src->data);
@@ -675,7 +711,7 @@ ngx_ext_rename_file(ngx_str_t *src, ngx_str_t *to, ngx_ext_rename_file_t *ext)
     }
 
 #endif
-
+	// 如果time存在,设置文件的access time和modify time
     if (ext->time != -1) {
         if (ngx_set_file_time(src->data, ext->fd, ext->time) != NGX_OK) {
             ngx_log_error(NGX_LOG_CRIT, ext->log, ngx_errno,
@@ -684,11 +720,11 @@ ngx_ext_rename_file(ngx_str_t *src, ngx_str_t *to, ngx_ext_rename_file_t *ext)
             goto failed;
         }
     }
-
+	// 使用mv更改文件名字
     if (ngx_rename_file(src->data, to->data) != NGX_FILE_ERROR) {
         return NGX_OK;
     }
-
+	// 如果errno=ENOENT  (2) - No such file or directory
     err = ngx_errno;
 
     if (err == NGX_ENOPATH) {
@@ -696,7 +732,7 @@ ngx_ext_rename_file(ngx_str_t *src, ngx_str_t *to, ngx_ext_rename_file_t *ext)
         if (!ext->create_path) {
             goto failed;
         }
-
+		// 创建全路径
         err = ngx_create_full_path(to->data, ngx_dir_access(ext->path_access));
 
         if (err) {
@@ -705,7 +741,7 @@ ngx_ext_rename_file(ngx_str_t *src, ngx_str_t *to, ngx_ext_rename_file_t *ext)
             err = 0;
             goto failed;
         }
-
+		// 将文件名重命名
         if (ngx_rename_file(src->data, to->data) != NGX_FILE_ERROR) {
             return NGX_OK;
         }
@@ -724,7 +760,7 @@ ngx_ext_rename_file(ngx_str_t *src, ngx_str_t *to, ngx_ext_rename_file_t *ext)
     }
 
 #endif
-
+	//  EXDEV=18 - Cross-device link 
     if (err == NGX_EXDEV) {
 
         cf.size = -1;
@@ -732,20 +768,20 @@ ngx_ext_rename_file(ngx_str_t *src, ngx_str_t *to, ngx_ext_rename_file_t *ext)
         cf.access = ext->access;
         cf.time = ext->time;
         cf.log = ext->log;
-
+		// 分配内存
         name = ngx_alloc(to->len + 1 + 10 + 1, ext->log);
         if (name == NULL) {
             return NGX_ERROR;
         }
-
+		// 创建文件name名字
         (void) ngx_sprintf(name, "%*s.%010uD%Z", to->len, to->data,
                            (uint32_t) ngx_next_temp_number(0));
-
+		// 将src文件名拷贝到name中
         if (ngx_copy_file(src->data, name, &cf) == NGX_OK) {
-
+			// 重新命名,调用rename
             if (ngx_rename_file(name, to->data) != NGX_FILE_ERROR) {
                 ngx_free(name);
-
+				// 删除src->data为命名的文件
                 if (ngx_delete_file(src->data) == NGX_FILE_ERROR) {
                     ngx_log_error(NGX_LOG_CRIT, ext->log, ngx_errno,
                                   ngx_delete_file_n " \"%s\" failed",
@@ -759,7 +795,7 @@ ngx_ext_rename_file(ngx_str_t *src, ngx_str_t *to, ngx_ext_rename_file_t *ext)
             ngx_log_error(NGX_LOG_CRIT, ext->log, ngx_errno,
                           ngx_rename_file_n " \"%s\" to \"%s\" failed",
                           name, to->data);
-
+			// 删除name文件,调用unlink
             if (ngx_delete_file(name) == NGX_FILE_ERROR) {
                 ngx_log_error(NGX_LOG_CRIT, ext->log, ngx_errno,
                               ngx_delete_file_n " \"%s\" failed", name);
@@ -790,7 +826,9 @@ failed:
     return NGX_ERROR;
 }
 
-
+/*
+	将from文件内容拷贝到to文件中
+*/
 ngx_int_t
 ngx_copy_file(u_char *from, u_char *to, ngx_copy_file_t *cf)
 {
@@ -807,7 +845,7 @@ ngx_copy_file(u_char *from, u_char *to, ngx_copy_file_t *cf)
     rc = NGX_ERROR;
     buf = NULL;
     nfd = NGX_INVALID_FILE;
-
+	// 打开from文件
     fd = ngx_open_file(from, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
 
     if (fd == NGX_INVALID_FILE) {
@@ -828,7 +866,7 @@ ngx_copy_file(u_char *from, u_char *to, ngx_copy_file_t *cf)
 
             goto failed;
         }
-
+		// 获取文件信息
         size = (cf->size != -1) ? cf->size : ngx_file_size(&fi);
         access = cf->access ? cf->access : ngx_file_access(&fi);
         time = (cf->time != -1) ? cf->time : ngx_file_mtime(&fi);
@@ -839,12 +877,12 @@ ngx_copy_file(u_char *from, u_char *to, ngx_copy_file_t *cf)
     if ((off_t) len > size) {
         len = (size_t) size;
     }
-
+	// 分配len大小内存
     buf = ngx_alloc(len, cf->log);
     if (buf == NULL) {
         goto failed;
     }
-
+	// 打开to文件
     nfd = ngx_open_file(to, NGX_FILE_WRONLY, NGX_FILE_TRUNCATE, access);
 
     if (nfd == NGX_INVALID_FILE) {
@@ -858,7 +896,7 @@ ngx_copy_file(u_char *from, u_char *to, ngx_copy_file_t *cf)
         if ((off_t) len > size) {
             len = (size_t) size;
         }
-
+		// 读取fd len大小内容
         n = ngx_read_fd(fd, buf, len);
 
         if (n == -1) {
@@ -873,7 +911,7 @@ ngx_copy_file(u_char *from, u_char *to, ngx_copy_file_t *cf)
                           n, size, from);
             goto failed;
         }
-
+		// 写入到nfd中
         n = ngx_write_fd(nfd, buf, len);
 
         if (n == -1) {
@@ -891,7 +929,7 @@ ngx_copy_file(u_char *from, u_char *to, ngx_copy_file_t *cf)
 
         size -= n;
     }
-
+	// 设置文件时间
     if (ngx_set_file_time(to, nfd, time) != NGX_OK) {
         ngx_log_error(NGX_LOG_ALERT, cf->log, ngx_errno,
                       ngx_set_file_time_n " \"%s\" failed", to);
@@ -903,6 +941,7 @@ ngx_copy_file(u_char *from, u_char *to, ngx_copy_file_t *cf)
 failed:
 
     if (nfd != NGX_INVALID_FILE) {
+    	// 关闭nfd
         if (ngx_close_file(nfd) == NGX_FILE_ERROR) {
             ngx_log_error(NGX_LOG_ALERT, cf->log, ngx_errno,
                           ngx_close_file_n " \"%s\" failed", to);
@@ -910,6 +949,7 @@ failed:
     }
 
     if (fd != NGX_INVALID_FILE) {
+    	// 关闭fd
         if (ngx_close_file(fd) == NGX_FILE_ERROR) {
             ngx_log_error(NGX_LOG_ALERT, cf->log, ngx_errno,
                           ngx_close_file_n " \"%s\" failed", from);
@@ -941,7 +981,9 @@ failed:
  *
  * on fatal (memory) error handler must return NGX_ABORT to stop walking tree
  */
-
+/*
+	文件目录遍历
+*/
 ngx_int_t
 ngx_walk_tree(ngx_tree_ctx_t *ctx, ngx_str_t *tree)
 {
@@ -957,7 +999,7 @@ ngx_walk_tree(ngx_tree_ctx_t *ctx, ngx_str_t *tree)
 
     ngx_log_debug1(NGX_LOG_DEBUG_CORE, ctx->log, 0,
                    "walk tree \"%V\"", tree);
-
+	// 打开dir
     if (ngx_open_dir(tree, &dir) == NGX_ERROR) {
         ngx_log_error(NGX_LOG_CRIT, ctx->log, ngx_errno,
                       ngx_open_dir_n " \"%s\" failed", tree->data);
@@ -967,11 +1009,12 @@ ngx_walk_tree(ngx_tree_ctx_t *ctx, ngx_str_t *tree)
     prev = ctx->data;
 
     if (ctx->alloc) {
+    	// 分配alloc内存
         data = ngx_alloc(ctx->alloc, ctx->log);
         if (data == NULL) {
             goto failed;
         }
-
+		// 初始化init_handler
         if (ctx->init_handler(data, prev) == NGX_ABORT) {
             goto failed;
         }
@@ -985,7 +1028,7 @@ ngx_walk_tree(ngx_tree_ctx_t *ctx, ngx_str_t *tree)
     for ( ;; ) {
 
         ngx_set_errno(0);
-
+		// 读取read_dir
         if (ngx_read_dir(&dir) == NGX_ERROR) {
             err = ngx_errno;
 
@@ -1047,7 +1090,7 @@ ngx_walk_tree(ngx_tree_ctx_t *ctx, ngx_str_t *tree)
                 continue;
             }
         }
-
+		// 判断是否是文件
         if (ngx_de_is_file(&dir)) {
 
             ngx_log_debug1(NGX_LOG_DEBUG_CORE, ctx->log, 0,
@@ -1057,11 +1100,11 @@ ngx_walk_tree(ngx_tree_ctx_t *ctx, ngx_str_t *tree)
             ctx->fs_size = ngx_de_fs_size(&dir);
             ctx->access = ngx_de_access(&dir);
             ctx->mtime = ngx_de_mtime(&dir);
-
+			// 文件处理方法
             if (ctx->file_handler(ctx, &file) == NGX_ABORT) {
                 goto failed;
             }
-
+		// 判断是否是目录
         } else if (ngx_de_is_dir(&dir)) {
 
             ngx_log_debug1(NGX_LOG_DEBUG_CORE, ctx->log, 0,
@@ -1069,7 +1112,7 @@ ngx_walk_tree(ngx_tree_ctx_t *ctx, ngx_str_t *tree)
 
             ctx->access = ngx_de_access(&dir);
             ctx->mtime = ngx_de_mtime(&dir);
-
+			// pre_tree_handler
             rc = ctx->pre_tree_handler(ctx, &file);
 
             if (rc == NGX_ABORT) {
@@ -1088,7 +1131,7 @@ ngx_walk_tree(ngx_tree_ctx_t *ctx, ngx_str_t *tree)
 
             ctx->access = ngx_de_access(&dir);
             ctx->mtime = ngx_de_mtime(&dir);
-
+			// post_tree_handler
             if (ctx->post_tree_handler(ctx, &file) == NGX_ABORT) {
                 goto failed;
             }
