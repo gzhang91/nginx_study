@@ -12,6 +12,9 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
+/*
+	ngx_list_t 不同于一般的的链表,每个节点相当于一个ngx_array_t
+*/
 
 typedef struct ngx_list_part_s  ngx_list_part_t;
 
@@ -43,6 +46,7 @@ ngx_list_init(ngx_list_t *list, ngx_pool_t *pool, ngx_uint_t n, size_t size)
 
     list->part.nelts = 0;
     list->part.next = NULL;
+    // last指向第一个元素
     list->last = &list->part;
     list->size = size;
     list->nalloc = n;

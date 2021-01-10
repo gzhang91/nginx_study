@@ -48,17 +48,21 @@ typedef void (*ngx_log_writer_pt) (ngx_log_t *log, ngx_uint_t level,
 
 
 struct ngx_log_s {
+	// log登记
     ngx_uint_t           log_level;
+    // log日志打开的文件
     ngx_open_file_t     *file;
-
+	// 该日志上连接数
     ngx_atomic_uint_t    connection;
-
+	// 磁盘满的时间
     time_t               disk_full_time;
-
+	// 日志处理函数
     ngx_log_handler_pt   handler;
+    // 参数
     void                *data;
-
+	// 日志刷新函数
     ngx_log_writer_pt    writer;
+    // 参数
     void                *wdata;
 
     /*
@@ -66,9 +70,9 @@ struct ngx_log_s {
      * the static strings and in the "u_char *" case we have to override
      * their types all the time
      */
-
+	// 操作
     char                *action;
-
+	// 串联下一个句柄
     ngx_log_t           *next;
 };
 
@@ -81,7 +85,7 @@ struct ngx_log_s {
 #if (NGX_HAVE_C99_VARIADIC_MACROS)
 
 #define NGX_HAVE_VARIADIC_MACROS  1
-
+// log_level大于level才处理
 #define ngx_log_error(level, log, ...)                                        \
     if ((log)->log_level >= level) ngx_log_error_core(level, log, __VA_ARGS__)
 

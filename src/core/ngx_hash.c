@@ -24,7 +24,7 @@
 	== elt(同一个hash值)
 	|name-----|(void *)elt|
 	|len
-	|value 
+	|value | elt | (elt紧接着elt)
 */
 void *
 ngx_hash_find(ngx_hash_t *hash, ngx_uint_t key, u_char *name, size_t len)
@@ -586,7 +586,8 @@ ngx_hash_wildcard_init(ngx_hash_init_t *hinit, ngx_hash_key_t *names,
         }
 
         next_names.nelts = 0;
-		// 若原始key的长度和当前计算的长度不相等(也就是存在".")
+		// 若原始key的长度和当前计算的长度不相等(也就是存在".").
+		// 如果"."在末尾,dot=1,但是names[n].key.len==len
         if (names[n].key.len != len) {
         	// 需要创建next_name 一个item
         	// 上面的example.com而言, next_name为com
@@ -654,11 +655,11 @@ ngx_hash_wildcard_init(ngx_hash_init_t *hinit, ngx_hash_key_t *names,
             name->value = (void *) ((uintptr_t) wdc | (dot ? 3 : 2));
 
         } else if (dot) {
-			// 最后两位为1
+			// 这里就是"."最后的情况
             name->value = (void *) ((uintptr_t) name->value | 1);
         }
     }
-	// 调用普通hash init
+	// 调用普通hash init,将元素放入到buckets中
     if (ngx_hash_init(hinit, (ngx_hash_key_t *) curr_names.elts,
                       curr_names.nelts)
         != NGX_OK)
@@ -783,6 +784,7 @@ ngx_hash_keys_array_init(ngx_hash_keys_arrays_t *ha, ngx_uint_t type)
 
 /*
 	加入到hash中,flags代表是否是精确匹配还是模糊匹配
+	key是可以模糊匹配的字符串,比如: www.qq.com, www.qq.*, *.qq.com
 */
 ngx_int_t
 ngx_hash_add_key(ngx_hash_keys_arrays_t *ha, ngx_str_t *key, void *value,
@@ -849,10 +851,12 @@ ngx_hash_add_key(ngx_hash_keys_arrays_t *ha, ngx_str_t *key, void *value,
                 goto wildcard;
             }
         }
-		// 如果*出现了
+		// 如果*出现了, 有误
         if (n) {
             return NGX_DECLINED;
         }
+
+        // 虽然是NGX_HASH_WILDCARD_KEY,但是没有出现,直接当做精确匹配处理
     }
 
     /* exact hash */
@@ -912,7 +916,7 @@ ngx_hash_add_key(ngx_hash_keys_arrays_t *ha, ngx_str_t *key, void *value,
     hk->value = value;
 
     return NGX_OK;
-
+	// 精确匹配成功
 
 wildcard:
 	// 模糊匹配
@@ -926,6 +930,7 @@ wildcard:
 		1 - 以"."开头
 		2 - 以"*."开头
     */
+    // 对于以"."开头的key字符串,需要将key去掉开头的"."后保存到hash_key中
     if (skip == 1) {
 
         /* check conflicts in exact hash for ".example.com" */
@@ -990,7 +995,7 @@ wildcard:
 
         len = 0;
         n = 0;
-		// 这里以a.example.com为例子,这里条件是i>0,有点不妥
+		// 这里以a.example.com为例子,这里的判断条件为i > 0
         for (i = last - 1; i; i--) {
         	// 将a.example.com拷贝到p中为com.example.a
             if (key->data[i] == '.') {
@@ -1000,17 +1005,14 @@ wildcard:
                 len = 0;
                 continue;
             }
-			// len++为.之后的数据(或者从开始的数据)
-			// 1. .com
-			// 2. a.example.com中的"a"
             len++;
         }
 		// 如果还有.之后还有数据直到结束,这里还需要拷贝,比如 a.example.com中的"a"
+		// 这里使用data[1]特意去掉最前面的一位
         if (len) {
             ngx_memcpy(&p[n], &key->data[1], len);
             n += len;
         }
-		// 将后面赋值为0
         p[n] = '\0';
 		// 头部匹配的hash数组,元素类型为ngx_hash_key_t
         hwc = &ha->dns_wc_head;
@@ -1027,7 +1029,7 @@ wildcard:
         if (p == NULL) {
             return NGX_ERROR;
         }
-		// 拷贝到p中
+		// 拷贝到p中,其中last最后一个字符为"."
         ngx_cpystrn(p, key->data, last);
 		// 尾部匹配hash数组
         hwc = &ha->dns_wc_tail;
@@ -1083,7 +1085,6 @@ wildcard:
     }
 
     hk->key.len = last - 1;
-    // 这里的key不跳过开头的通配符
     hk->key.data = p;
     // hash值为0
     hk->key_hash = 0;

@@ -997,7 +997,9 @@ ngx_atofp(u_char *line, size_t n, size_t point)
     return value;
 }
 
-
+/*
+	将数字字符串转换成数字,类型为ssize_t
+*/
 ssize_t
 ngx_atosz(u_char *line, size_t n)
 {
@@ -1014,7 +1016,7 @@ ngx_atosz(u_char *line, size_t n)
         if (*line < '0' || *line > '9') {
             return NGX_ERROR;
         }
-
+		// 判断值是否大于最大值,如果最后一个字符大于cutlim,直接返回
         if (value >= cutoff && (value > cutoff || *line - '0' > cutlim)) {
             return NGX_ERROR;
         }

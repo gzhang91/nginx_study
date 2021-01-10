@@ -319,7 +319,7 @@ ngx_pool_cleanup_add(ngx_pool_t *p, size_t size)
     if (c == NULL) {
         return NULL;
     }
-	// size==0
+	// size!=0
     if (size) {
     	// 在内存池中size大小内存
         c->data = ngx_palloc(p, size);

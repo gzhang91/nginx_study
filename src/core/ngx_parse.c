@@ -23,7 +23,7 @@ ngx_parse_size(ngx_str_t *line)
     }
 
     unit = line->data[len - 1];
-
+	// 判断最末尾的那个字符代表哪种类型长度
     switch (unit) {
     case 'K':
     case 'k':
@@ -43,12 +43,12 @@ ngx_parse_size(ngx_str_t *line)
         max = NGX_MAX_SIZE_T_VALUE;
         scale = 1;
     }
-
+	// 转换成数字
     size = ngx_atosz(line->data, len);
     if (size == NGX_ERROR || size > max) {
         return NGX_ERROR;
     }
-
+	// 乘上scale
     size *= scale;
 
     return size;

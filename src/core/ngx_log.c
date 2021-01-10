@@ -22,15 +22,19 @@ static void ngx_log_memory_cleanup(void *data);
 
 
 typedef struct {
+	// 开始指针
     u_char        *start;
+    // 结束指针
     u_char        *end;
+    // 当前指针
     u_char        *pos;
+    // 写入的大小位置
     ngx_atomic_t   written;
 } ngx_log_memory_buf_t;
 
 #endif
 
-
+// log模块的命令
 static ngx_command_t  ngx_errlog_commands[] = {
 
     { ngx_string("error_log"),
@@ -43,7 +47,7 @@ static ngx_command_t  ngx_errlog_commands[] = {
       ngx_null_command
 };
 
-
+// core module的module结构体
 static ngx_core_module_t  ngx_errlog_module_ctx = {
     ngx_string("errlog"),
     NULL,
@@ -71,7 +75,7 @@ static ngx_log_t        ngx_log;
 static ngx_open_file_t  ngx_log_file;
 ngx_uint_t              ngx_use_stderr = 1;
 
-
+// log error 的字符串表示
 static ngx_str_t err_levels[] = {
     ngx_null_string,
     ngx_string("emerg"),
@@ -83,7 +87,7 @@ static ngx_str_t err_levels[] = {
     ngx_string("info"),
     ngx_string("debug")
 };
-
+// debug日志级别的字符串
 static const char *debug_levels[] = {
     "debug_core", "debug_alloc", "debug_mutex", "debug_event",
     "debug_http", "debug_mail", "debug_stream"
@@ -91,7 +95,9 @@ static const char *debug_levels[] = {
 
 
 #if (NGX_HAVE_VARIADIC_MACROS)
-
+/*
+	log写入的核心函数
+*/
 void
 ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
     const char *fmt, ...)
@@ -113,20 +119,21 @@ ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
     u_char       errstr[NGX_MAX_ERROR_STR];
 
     last = errstr + NGX_MAX_ERROR_STR;
-
+	// 写入cached_err_log_time
     p = ngx_cpymem(errstr, ngx_cached_err_log_time.data,
                    ngx_cached_err_log_time.len);
-
+	// 写入日志级别
     p = ngx_slprintf(p, last, " [%V] ", &err_levels[level]);
 
     /* pid#tid */
+    // 写入pid,tid
     p = ngx_slprintf(p, last, "%P#" NGX_TID_T_FMT ": ",
                     ngx_log_pid, ngx_log_tid);
-
+	// connection数
     if (log->connection) {
         p = ngx_slprintf(p, last, "*%uA ", log->connection);
     }
-
+	
     msg = p;
 
 #if (NGX_HAVE_VARIADIC_MACROS)
@@ -140,22 +147,23 @@ ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
     p = ngx_vslprintf(p, last, fmt, args);
 
 #endif
-
+	// 写入errno
     if (err) {
         p = ngx_log_errno(p, last, err);
     }
-
+	// 如果存在handler就调用
     if (level != NGX_LOG_DEBUG && log->handler) {
         p = log->handler(log, p, last - p);
     }
-
+	// 如果现在的位置大于了最大字符长度
     if (p > last - NGX_LINEFEED_SIZE) {
         p = last - NGX_LINEFEED_SIZE;
     }
-
+	// 添加换行
     ngx_linefeed(p);
 
     wrote_stderr = 0;
+    // 如果存在debug_connection标记
     debug_connection = (log->log_level & NGX_LOG_DEBUG_CONNECTION) != 0;
 
     while (log) {
@@ -163,7 +171,7 @@ ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
         if (log->log_level < level && !debug_connection) {
             break;
         }
-
+		// 如果存在特定的writer函数,调用之
         if (log->writer) {
             log->writer(log, level, errstr, p - errstr);
             goto next;
@@ -179,7 +187,7 @@ ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
 
             goto next;
         }
-
+		// 写到对应的文件中
         n = ngx_write_fd(log->file->fd, errstr, p - errstr);
 
         if (n == -1 && ngx_errno == NGX_ENOSPC) {
@@ -191,7 +199,7 @@ ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
         }
 
     next:
-
+		// 转换到下一个日志句柄中
         log = log->next;
     }
 
@@ -205,13 +213,13 @@ ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
     msg -= (7 + err_levels[level].len + 3);
 
     (void) ngx_sprintf(msg, "nginx: [%V] ", &err_levels[level]);
-
+	// 写msg到控制台中,msg写入的内容和写入到文件中的并不一样
     (void) ngx_write_console(ngx_stderr, msg, p - msg);
 }
 
 
 #if !(NGX_HAVE_VARIADIC_MACROS)
-
+// log error
 void ngx_cdecl
 ngx_log_error(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
     const char *fmt, ...)
@@ -225,7 +233,7 @@ ngx_log_error(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
     }
 }
 
-
+// log debug
 void ngx_cdecl
 ngx_log_debug_core(ngx_log_t *log, ngx_err_t err, const char *fmt, ...)
 {
@@ -238,7 +246,7 @@ ngx_log_debug_core(ngx_log_t *log, ngx_err_t err, const char *fmt, ...)
 
 #endif
 
-
+// log abort
 void ngx_cdecl
 ngx_log_abort(ngx_err_t err, const char *fmt, ...)
 {
@@ -254,7 +262,7 @@ ngx_log_abort(ngx_err_t err, const char *fmt, ...)
                   "%*s", p - errstr, errstr);
 }
 
-
+// 写入到屏幕上
 void ngx_cdecl
 ngx_log_stderr(ngx_err_t err, const char *fmt, ...)
 {
@@ -283,7 +291,7 @@ ngx_log_stderr(ngx_err_t err, const char *fmt, ...)
     (void) ngx_write_console(ngx_stderr, errstr, p - errstr);
 }
 
-
+// 写入errno
 u_char *
 ngx_log_errno(u_char *buf, u_char *last, ngx_err_t err)
 {
@@ -313,16 +321,19 @@ ngx_log_errno(u_char *buf, u_char *last, ngx_err_t err)
     return buf;
 }
 
-
+/*
+	设置日志名字打开日志
+*/
 ngx_log_t *
 ngx_log_init(u_char *prefix)
 {
     u_char  *p, *name;
     size_t   nlen, plen;
-
+	// 赋值open log file
     ngx_log.file = &ngx_log_file;
+    // 设置默认log_level
     ngx_log.log_level = NGX_LOG_NOTICE;
-
+	// 文件名
     name = (u_char *) NGX_ERROR_LOG_PATH;
 
     /*
@@ -333,6 +344,7 @@ ngx_log_init(u_char *prefix)
     nlen = ngx_strlen(name);
 
     if (nlen == 0) {
+    	// 没有文件名,直接输出到屏幕
         ngx_log_file.fd = ngx_stderr;
         return &ngx_log;
     }
@@ -374,7 +386,7 @@ ngx_log_init(u_char *prefix)
             p = name;
         }
     }
-
+	// 打开文件,以APPEND打开
     ngx_log_file.fd = ngx_open_file(name, NGX_FILE_APPEND,
                                     NGX_FILE_CREATE_OR_OPEN,
                                     NGX_FILE_DEFAULT_ACCESS);
@@ -468,7 +480,9 @@ ngx_log_redirect_stderr(ngx_cycle_t *cycle)
     return NGX_OK;
 }
 
-
+/*
+	从log链表中获取空闲log节点
+*/
 ngx_log_t *
 ngx_log_get_file_log(ngx_log_t *head)
 {
@@ -483,23 +497,25 @@ ngx_log_get_file_log(ngx_log_t *head)
     return NULL;
 }
 
-
+/*
+	根据参数设置日志等级
+*/
 static char *
 ngx_log_set_levels(ngx_conf_t *cf, ngx_log_t *log)
 {
     ngx_uint_t   i, n, d, found;
     ngx_str_t   *value;
-
+	// 如果只有两个参数,如:error_log  logs/error.log;直接设置为NGX_LOG_ERR
     if (cf->args->nelts == 2) {
         log->log_level = NGX_LOG_ERR;
         return NGX_CONF_OK;
     }
-
+	// 超过两个参数,如:error_log		  logs/error.log notice;
     value = cf->args->elts;
 
     for (i = 2; i < cf->args->nelts; i++) {
         found = 0;
-
+		// 从0-8log等级中查找,是否成功
         for (n = 1; n <= NGX_LOG_DEBUG; n++) {
             if (ngx_strcmp(value[i].data, err_levels[n].data) == 0) {
 
@@ -515,7 +531,7 @@ ngx_log_set_levels(ngx_conf_t *cf, ngx_log_t *log)
                 break;
             }
         }
-
+		// 从0x010,0x020,0x040...中查找是否有对应debug等级的
         for (n = 0, d = NGX_LOG_DEBUG_FIRST; d <= NGX_LOG_DEBUG_LAST; d <<= 1) {
             if (ngx_strcmp(value[i].data, debug_levels[n++]) == 0) {
                 if (log->log_level & ~NGX_LOG_DEBUG_ALL) {
@@ -538,7 +554,7 @@ ngx_log_set_levels(ngx_conf_t *cf, ngx_log_t *log)
             return NGX_CONF_ERROR;
         }
     }
-
+	// 如果设置为debug,则log_level最大,默认越大输出的日志越多
     if (log->log_level == NGX_LOG_DEBUG) {
         log->log_level = NGX_LOG_DEBUG_ALL;
     }
@@ -546,14 +562,16 @@ ngx_log_set_levels(ngx_conf_t *cf, ngx_log_t *log)
     return NGX_CONF_OK;
 }
 
-
+/*
+	error_log的设置函数
+*/
 static char *
 ngx_error_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_log_t  *dummy;
 
     dummy = &cf->cycle->new_log;
-
+	// 设置日志句柄
     return ngx_log_set_log(cf, &dummy);
 }
 
@@ -564,12 +582,12 @@ ngx_log_set_log(ngx_conf_t *cf, ngx_log_t **head)
     ngx_log_t          *new_log;
     ngx_str_t          *value, name;
     ngx_syslog_peer_t  *peer;
-
+	// 如果头不为空且log_level没有设置
     if (*head != NULL && (*head)->log_level == 0) {
         new_log = *head;
 
     } else {
-
+		// 创建new_log节点
         new_log = ngx_pcalloc(cf->pool, sizeof(ngx_log_t));
         if (new_log == NULL) {
             return NGX_CONF_ERROR;
@@ -579,19 +597,20 @@ ngx_log_set_log(ngx_conf_t *cf, ngx_log_t **head)
             *head = new_log;
         }
     }
-
+	// 获取值
     value = cf->args->elts;
-
+	// 判断值是否为stderr
     if (ngx_strcmp(value[1].data, "stderr") == 0) {
         ngx_str_null(&name);
         cf->cycle->log_use_stderr = 1;
-
+		// 打开conf文件
         new_log->file = ngx_conf_open_file(cf->cycle, &name);
         if (new_log->file == NULL) {
             return NGX_CONF_ERROR;
         }
 
     } else if (ngx_strncmp(value[1].data, "memory:", 7) == 0) {
+    	// 如果是memory,需要开启NGX_DEBUG
 
 #if (NGX_DEBUG)
         size_t                 size, needed;
@@ -600,13 +619,13 @@ ngx_log_set_log(ngx_conf_t *cf, ngx_log_t **head)
 
         value[1].len -= 7;
         value[1].data += 7;
-
+		// 计算一个最大的大小
         needed = sizeof("MEMLOG  :" NGX_LINEFEED)
                  + cf->conf_file->file.name.len
                  + NGX_SIZE_T_LEN
                  + NGX_INT_T_LEN
                  + NGX_MAX_ERROR_STR;
-
+		// 解析值大小,并进行单位换算
         size = ngx_parse_size(&value[1]);
 
         if (size == (size_t) NGX_ERROR || size < needed) {
@@ -614,33 +633,33 @@ ngx_log_set_log(ngx_conf_t *cf, ngx_log_t **head)
                                "invalid buffer size \"%V\"", &value[1]);
             return NGX_CONF_ERROR;
         }
-
+		// 申请一个ngx_log_memory_buf_t节点
         buf = ngx_pcalloc(cf->pool, sizeof(ngx_log_memory_buf_t));
         if (buf == NULL) {
             return NGX_CONF_ERROR;
         }
-
+		// 申请size大小对应的内存
         buf->start = ngx_pnalloc(cf->pool, size);
         if (buf->start == NULL) {
             return NGX_CONF_ERROR;
         }
-
+		// 设置end位置
         buf->end = buf->start + size;
-
+		// 设置内容移动pos指针
         buf->pos = ngx_slprintf(buf->start, buf->end, "MEMLOG %uz %V:%ui%N",
                                 size, &cf->conf_file->file.name,
                                 cf->conf_file->line);
-
+		
         ngx_memset(buf->pos, ' ', buf->end - buf->pos);
-
+		// 添加一个清理节点,第二个参数为0表示不需要预先分配参数内存
         cln = ngx_pool_cleanup_add(cf->pool, 0);
         if (cln == NULL) {
             return NGX_CONF_ERROR;
         }
-
+		// 设置清理句柄为ngx_log_memory_cleanup
         cln->data = new_log;
         cln->handler = ngx_log_memory_cleanup;
-
+		// 设置写日志的函数句柄为ngx_log_memory_writer
         new_log->writer = ngx_log_memory_writer;
         new_log->wdata = buf;
 
@@ -651,6 +670,7 @@ ngx_log_set_log(ngx_conf_t *cf, ngx_log_t **head)
 #endif
 
     } else if (ngx_strncmp(value[1].data, "syslog:", 7) == 0) {
+    	// 如果是syslog
         peer = ngx_pcalloc(cf->pool, sizeof(ngx_syslog_peer_t));
         if (peer == NULL) {
             return NGX_CONF_ERROR;
@@ -673,7 +693,7 @@ ngx_log_set_log(ngx_conf_t *cf, ngx_log_t **head)
     if (ngx_log_set_levels(cf, new_log) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
-
+	// 将new_log插入到log list中
     if (*head != new_log) {
         ngx_log_insert(*head, new_log);
     }
@@ -681,12 +701,14 @@ ngx_log_set_log(ngx_conf_t *cf, ngx_log_t **head)
     return NGX_CONF_OK;
 }
 
-
+/*
+	将new_log插入到log链表中
+*/
 static void
 ngx_log_insert(ngx_log_t *log, ngx_log_t *new_log)
 {
     ngx_log_t  tmp;
-
+	// 根据log_level进行排序插入,如果log_level大直接插入到头部
     if (new_log->log_level > log->log_level) {
 
         /*
@@ -703,6 +725,7 @@ ngx_log_insert(ngx_log_t *log, ngx_log_t *new_log)
     }
 
     while (log->next) {
+    	// 循环比较,找到合适的插入点插入
         if (new_log->log_level > log->next->log_level) {
             new_log->next = log->next;
             log->next = new_log;
@@ -717,7 +740,9 @@ ngx_log_insert(ngx_log_t *log, ngx_log_t *new_log)
 
 
 #if (NGX_DEBUG)
-
+/*
+	memory特定的writer函数
+*/
 static void
 ngx_log_memory_writer(ngx_log_t *log, ngx_uint_t level, u_char *buf,
     size_t len)
@@ -731,23 +756,26 @@ ngx_log_memory_writer(ngx_log_t *log, ngx_uint_t level, u_char *buf,
     if (mem == NULL) {
         return;
     }
-
+	// written次数加写入的大小,返回old值,且value=old+len
     written = ngx_atomic_fetch_add(&mem->written, len);
-
+	// 重新计算,可能覆盖写
     p = mem->pos + written % (mem->end - mem->pos);
-
+	// 计算可用内存
     avail = mem->end - p;
-
+	// 如果avail >= len,拷贝数据
     if (avail >= len) {
         ngx_memcpy(p, buf, len);
 
     } else {
+    // 否则从头开始覆盖写
         ngx_memcpy(p, buf, avail);
         ngx_memcpy(mem->pos, buf + avail, len - avail);
     }
 }
 
-
+/*
+	memory log的清理句柄
+*/
 static void
 ngx_log_memory_cleanup(void *data)
 {

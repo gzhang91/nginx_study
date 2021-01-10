@@ -12,11 +12,15 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-
+/*
+	整个hash结构是这样的,
+	buckets中存放的就是ngx_hash_elt_t的指针
+	如果对于hash冲突的情况,elt存放在elt之后
+*/
 typedef struct {
-    void             *value;
-    u_short           len;
-    u_char            name[1];
+    void             *value;   // value
+    u_short           len;     // key len
+    u_char            name[1]; // key name
 } ngx_hash_elt_t;
 
 
@@ -34,12 +38,13 @@ typedef struct {
     void             *value;
 } ngx_hash_wildcard_t;
 
-
+// hash_key结构体
 typedef struct {
-	// key
+	// key字符串
     ngx_str_t         key;
     // key的hash值
     ngx_uint_t        key_hash;
+    // key的值
     void             *value;
 } ngx_hash_key_t;
 
@@ -92,17 +97,17 @@ typedef struct {
     ngx_pool_t       *pool;
     // 临时内存池
     ngx_pool_t       *temp_pool;
-	// keys数组
+	// keys数组,ngx_hash_key_t数组
     ngx_array_t       keys;
-    // hash key数组
+    // hash key数组,ngx_str_t数组,存储key字符串
     ngx_array_t      *keys_hash;
-	// dns head匹配数组
+	// dns head匹配数组, ngx_hash_key_t数组
     ngx_array_t       dns_wc_head;
-    // head_hash指针数组
+    // head_hash指针数组, dns_wc_head_hash[i]为ngx_str_t类型
     ngx_array_t      *dns_wc_head_hash;
-	// dns tail匹配数组
+	// dns tail匹配数组, ngx_hash_key_t数组
     ngx_array_t       dns_wc_tail;
-    // tail_hash指针数组
+    // tail_hash指针数组, dns_wc_tail_hash[i]为ngx_str_t类型
     ngx_array_t      *dns_wc_tail_hash;
 } ngx_hash_keys_arrays_t;
 

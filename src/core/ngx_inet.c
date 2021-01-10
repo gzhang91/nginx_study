@@ -15,7 +15,9 @@ static ngx_int_t ngx_parse_inet6_url(ngx_pool_t *pool, ngx_url_t *u);
 static ngx_int_t ngx_inet_add_addr(ngx_pool_t *pool, ngx_url_t *u,
     struct sockaddr *sockaddr, socklen_t socklen, ngx_uint_t total);
 
-
+/*
+	将ip字符串转换为网络字节序ip
+*/
 in_addr_t
 ngx_inet_addr(u_char *text, size_t len)
 {
@@ -26,11 +28,12 @@ ngx_inet_addr(u_char *text, size_t len)
     addr = 0;
     octet = 0;
     n = 0;
-
+	// 192.168.1.100
     for (p = text; p < text + len; p++) {
         c = *p;
-
+		
         if (c >= '0' && c <= '9') {
+        	// octet代表一个字节
             octet = octet * 10 + (c - '0');
 
             if (octet > 255) {
@@ -39,7 +42,7 @@ ngx_inet_addr(u_char *text, size_t len)
 
             continue;
         }
-
+		// 遇到"."就重新置位,计算
         if (c == '.') {
             addr = (addr << 8) + octet;
             octet = 0;
@@ -49,7 +52,7 @@ ngx_inet_addr(u_char *text, size_t len)
 
         return INADDR_NONE;
     }
-
+	// 整个字符串ip解析完成了
     if (n == 3) {
         addr = (addr << 8) + octet;
         return htonl(addr);
@@ -60,7 +63,9 @@ ngx_inet_addr(u_char *text, size_t len)
 
 
 #if (NGX_HAVE_INET6)
-
+/*
+	将ipv6字符串地址转换为addr
+*/
 ngx_int_t
 ngx_inet6_addr(u_char *p, size_t len, u_char *addr)
 {
@@ -178,7 +183,9 @@ ngx_inet6_addr(u_char *p, size_t len, u_char *addr)
 
 #endif
 
-
+/*
+	将网络ip地址转换为字符串ip地址
+*/
 size_t
 ngx_sock_ntop(struct sockaddr *sa, socklen_t socklen, u_char *text, size_t len,
     ngx_uint_t port)
@@ -201,7 +208,7 @@ ngx_sock_ntop(struct sockaddr *sa, socklen_t socklen, u_char *text, size_t len,
 
         sin = (struct sockaddr_in *) sa;
         p = (u_char *) &sin->sin_addr;
-
+		// port如果存在,也会序列化
         if (port) {
             p = ngx_snprintf(text, len, "%ud.%ud.%ud.%ud:%d",
                              p[0], p[1], p[2], p[3], ntohs(sin->sin_port));
@@ -209,7 +216,7 @@ ngx_sock_ntop(struct sockaddr *sa, socklen_t socklen, u_char *text, size_t len,
             p = ngx_snprintf(text, len, "%ud.%ud.%ud.%ud",
                              p[0], p[1], p[2], p[3]);
         }
-
+		// 返回长度
         return (p - text);
 
 #if (NGX_HAVE_INET6)
@@ -245,6 +252,7 @@ ngx_sock_ntop(struct sockaddr *sa, socklen_t socklen, u_char *text, size_t len,
             p = ngx_snprintf(text, len, "unix:%Z");
 
         } else {
+        	// 返回长度
             n = ngx_strnlen((u_char *) saun->sun_path,
                             socklen - offsetof(struct sockaddr_un, sun_path));
             p = ngx_snprintf(text, len, "unix:%*s%Z", n, saun->sun_path);
@@ -261,7 +269,9 @@ ngx_sock_ntop(struct sockaddr *sa, socklen_t socklen, u_char *text, size_t len,
     }
 }
 
-
+/*
+	将网络ip地址转换为ip字符串地址
+*/
 size_t
 ngx_inet_ntop(int family, void *addr, u_char *text, size_t len)
 {
@@ -291,7 +301,9 @@ ngx_inet_ntop(int family, void *addr, u_char *text, size_t len)
 
 
 #if (NGX_HAVE_INET6)
-
+/*
+	ipv6 网络地址转换为字符串地址
+*/
 size_t
 ngx_inet6_ntop(u_char *p, u_char *text, size_t len)
 {
@@ -370,7 +382,9 @@ ngx_inet6_ntop(u_char *p, u_char *text, size_t len)
 
 #endif
 
-
+/*
+	将cidr字符串地址转换为cidr结构
+*/
 ngx_int_t
 ngx_ptocidr(ngx_str_t *text, ngx_cidr_t *cidr)
 {
@@ -384,15 +398,16 @@ ngx_ptocidr(ngx_str_t *text, ngx_cidr_t *cidr)
 
     addr = text->data;
     last = addr + text->len;
-
+	// 找到mask位置
     mask = ngx_strlchr(addr, last, '/');
+    // 除掉mask的长度
     len = (mask ? mask : last) - addr;
-
+	// ip字符串转换为整数
     cidr->u.in.addr = ngx_inet_addr(addr, len);
-
+	// 地址不是255.255.255.255
     if (cidr->u.in.addr != INADDR_NONE) {
         cidr->family = AF_INET;
-
+		// 如果mask为NULL,mask=255.255.255.255
         if (mask == NULL) {
             cidr->u.in.mask = 0xffffffff;
             return NGX_OK;
@@ -413,7 +428,7 @@ ngx_ptocidr(ngx_str_t *text, ngx_cidr_t *cidr)
     }
 
     mask++;
-
+	// 获取mask的整数值
     shift = ngx_atoi(mask, last - mask);
     if (shift == NGX_ERROR) {
         return NGX_ERROR;
@@ -448,10 +463,11 @@ ngx_ptocidr(ngx_str_t *text, ngx_cidr_t *cidr)
 #endif
 
     default: /* AF_INET */
+    	// shift如果大于32
         if (shift > 32) {
             return NGX_ERROR;
         }
-
+		// 计算mask
         if (shift) {
             cidr->u.in.mask = htonl((uint32_t) (0xffffffffu << (32 - shift)));
 
@@ -459,7 +475,7 @@ ngx_ptocidr(ngx_str_t *text, ngx_cidr_t *cidr)
             /* x86 compilers use a shl instruction that shifts by modulo 32 */
             cidr->u.in.mask = 0;
         }
-
+		// 检查
         if (cidr->u.in.addr == (cidr->u.in.addr & cidr->u.in.mask)) {
             return NGX_OK;
         }
@@ -470,7 +486,9 @@ ngx_ptocidr(ngx_str_t *text, ngx_cidr_t *cidr)
     }
 }
 
-
+/*
+	根据sa从cidrs中查找是否有匹配的
+*/
 ngx_int_t
 ngx_cidr_match(struct sockaddr *sa, ngx_array_t *cidrs)
 {
@@ -493,7 +511,7 @@ ngx_cidr_match(struct sockaddr *sa, ngx_array_t *cidrs)
 #endif
 
     family = sa->sa_family;
-
+	// 获取到inaddr, ipv4地址
     if (family == AF_INET) {
         inaddr = ((struct sockaddr_in *) sa)->sin_addr.s_addr;
     }
@@ -542,6 +560,7 @@ ngx_cidr_match(struct sockaddr *sa, ngx_array_t *cidrs)
 #endif
 
         default: /* AF_INET */
+        	// 进行地址匹配判断
             if ((inaddr & cidr[i].u.in.mask) != cidr[i].u.in.addr) {
                 goto next;
             }
@@ -557,7 +576,9 @@ ngx_cidr_match(struct sockaddr *sa, ngx_array_t *cidrs)
     return NGX_DECLINED;
 }
 
-
+/*
+	将text转换ngx_addr_t
+*/
 ngx_int_t
 ngx_parse_addr(ngx_pool_t *pool, ngx_addr_t *addr, u_char *text, size_t len)
 {
@@ -574,7 +595,7 @@ ngx_parse_addr(ngx_pool_t *pool, ngx_addr_t *addr, u_char *text, size_t len)
      */
     ngx_memzero(&inaddr6, sizeof(struct in6_addr));
 #endif
-
+	// 地址转换
     inaddr = ngx_inet_addr(text, len);
 
     if (inaddr != INADDR_NONE) {
@@ -609,6 +630,7 @@ ngx_parse_addr(ngx_pool_t *pool, ngx_addr_t *addr, u_char *text, size_t len)
 #endif
 
     default: /* AF_INET */
+    	// 赋值
         sin = (struct sockaddr_in *) addr->sockaddr;
         sin->sin_addr.s_addr = inaddr;
         break;
@@ -617,7 +639,9 @@ ngx_parse_addr(ngx_pool_t *pool, ngx_addr_t *addr, u_char *text, size_t len)
     return NGX_OK;
 }
 
-
+/*
+	解析port
+*/
 ngx_int_t
 ngx_parse_addr_port(ngx_pool_t *pool, ngx_addr_t *addr, u_char *text,
     size_t len)
@@ -625,7 +649,7 @@ ngx_parse_addr_port(ngx_pool_t *pool, ngx_addr_t *addr, u_char *text,
     u_char     *p, *last;
     size_t      plen;
     ngx_int_t   rc, port;
-
+	// 解析addr
     rc = ngx_parse_addr(pool, addr, text, len);
 
     if (rc != NGX_DECLINED) {
@@ -649,7 +673,7 @@ ngx_parse_addr_port(ngx_pool_t *pool, ngx_addr_t *addr, u_char *text,
     } else
 #endif
 
-    {
+    {	// 查找:
         p = ngx_strlchr(text, last, ':');
 
         if (p == NULL) {
@@ -659,7 +683,7 @@ ngx_parse_addr_port(ngx_pool_t *pool, ngx_addr_t *addr, u_char *text,
 
     p++;
     plen = last - p;
-
+	// 解析port
     port = ngx_atoi(p, plen);
 
     if (port < 1 || port > 65535) {
@@ -673,7 +697,7 @@ ngx_parse_addr_port(ngx_pool_t *pool, ngx_addr_t *addr, u_char *text,
     if (rc != NGX_OK) {
         return rc;
     }
-
+	// 设置port
     ngx_inet_set_port(addr->sockaddr, (in_port_t) port);
 
     return NGX_OK;
@@ -688,11 +712,11 @@ ngx_parse_url(ngx_pool_t *pool, ngx_url_t *u)
 
     p = u->url.data;
     len = u->url.len;
-
+	// 解析unix地址
     if (len >= 5 && ngx_strncasecmp(p, (u_char *) "unix:", 5) == 0) {
         return ngx_parse_unix_domain_url(pool, u);
     }
-
+	// 解析ipv6地址
     if (len && p[0] == '[') {
         return ngx_parse_inet6_url(pool, u);
     }
@@ -796,11 +820,11 @@ ngx_parse_inet_url(ngx_pool_t *pool, ngx_url_t *u)
     host = u->url.data;
 
     last = host + u->url.len;
-
+	// 查找是否存在port
     port = ngx_strlchr(host, last, ':');
-
+	// 查找"/"地方
     uri = ngx_strlchr(host, last, '/');
-
+	// 查找"?"地方
     args = ngx_strlchr(host, last, '?');
 
     if (args) {
@@ -933,7 +957,7 @@ ngx_parse_inet_url(ngx_pool_t *pool, ngx_url_t *u)
         }
 
 no_port:
-
+		// 设置默认的port
         u->err = NULL;
         u->no_port = 1;
         u->port = u->default_port;
@@ -971,7 +995,7 @@ no_port:
     if (u->no_resolve) {
         return NGX_OK;
     }
-
+	// 解析host
     if (ngx_inet_resolve_host(pool, u) != NGX_OK) {
         return NGX_ERROR;
     }
@@ -1112,7 +1136,9 @@ ngx_parse_inet6_url(ngx_pool_t *pool, ngx_url_t *u)
 
 
 #if (NGX_HAVE_GETADDRINFO && NGX_HAVE_INET6)
+/*
 
+*/
 ngx_int_t
 ngx_inet_resolve_host(ngx_pool_t *pool, ngx_url_t *u)
 {
@@ -1193,7 +1219,9 @@ failed:
 }
 
 #else /* !NGX_HAVE_GETADDRINFO || !NGX_HAVE_INET6 */
-
+/*
+	解析地址
+*/
 ngx_int_t
 ngx_inet_resolve_host(ngx_pool_t *pool, ngx_url_t *u)
 {
@@ -1216,7 +1244,7 @@ ngx_inet_resolve_host(ngx_pool_t *pool, ngx_url_t *u)
         }
 
         (void) ngx_cpystrn(host, u->host.data, u->host.len + 1);
-
+		// 获取地址数组
         h = gethostbyname((char *) host);
 
         ngx_free(host);
@@ -1232,7 +1260,7 @@ ngx_inet_resolve_host(ngx_pool_t *pool, ngx_url_t *u)
 
         for (i = 0; i < n; i++) {
             sin.sin_addr.s_addr = *(in_addr_t *) (h->h_addr_list[i]);
-
+			// 将地址存入到数组中
             if (ngx_inet_add_addr(pool, u, (struct sockaddr *) &sin,
                                   sizeof(struct sockaddr_in), n)
                 != NGX_OK)
@@ -1258,7 +1286,9 @@ ngx_inet_resolve_host(ngx_pool_t *pool, ngx_url_t *u)
 
 #endif /* NGX_HAVE_GETADDRINFO && NGX_HAVE_INET6 */
 
-
+/*
+	设置地址
+*/
 static ngx_int_t
 ngx_inet_add_addr(ngx_pool_t *pool, ngx_url_t *u, struct sockaddr *sockaddr,
     socklen_t socklen, ngx_uint_t total)
@@ -1272,6 +1302,7 @@ ngx_inet_add_addr(ngx_pool_t *pool, ngx_url_t *u, struct sockaddr *sockaddr,
     nports = u->last_port ? u->last_port - u->port + 1 : 1;
 
     if (u->addrs == NULL) {
+    	// 申请total * nports * sizeof(ngx_addr_t)个数组元素
         u->addrs = ngx_palloc(pool, total * nports * sizeof(ngx_addr_t));
         if (u->addrs == NULL) {
             return NGX_ERROR;
@@ -1285,7 +1316,7 @@ ngx_inet_add_addr(ngx_pool_t *pool, ngx_url_t *u, struct sockaddr *sockaddr,
         }
 
         ngx_memcpy(sa, sockaddr, socklen);
-
+		// 同一个ip不同的端口
         ngx_inet_set_port(sa, u->port + i);
 
         switch (sa->sa_family) {
@@ -1304,7 +1335,7 @@ ngx_inet_add_addr(ngx_pool_t *pool, ngx_url_t *u, struct sockaddr *sockaddr,
         if (p == NULL) {
             return NGX_ERROR;
         }
-
+		// 设置addr地址
         len = ngx_sock_ntop(sa, socklen, p, len, 1);
 
         addr = &u->addrs[u->naddrs++];
@@ -1319,7 +1350,9 @@ ngx_inet_add_addr(ngx_pool_t *pool, ngx_url_t *u, struct sockaddr *sockaddr,
     return NGX_OK;
 }
 
-
+/*
+	地址比较
+*/
 ngx_int_t
 ngx_cmp_sockaddr(struct sockaddr *sa1, socklen_t slen1,
     struct sockaddr *sa2, socklen_t slen2, ngx_uint_t cmp_port)
@@ -1384,11 +1417,11 @@ ngx_cmp_sockaddr(struct sockaddr *sa1, socklen_t slen1,
 
         sin1 = (struct sockaddr_in *) sa1;
         sin2 = (struct sockaddr_in *) sa2;
-
+		// 如果需要比较port
         if (cmp_port && sin1->sin_port != sin2->sin_port) {
             return NGX_DECLINED;
         }
-
+		// 只比较ip地址
         if (sin1->sin_addr.s_addr != sin2->sin_addr.s_addr) {
             return NGX_DECLINED;
         }
@@ -1399,7 +1432,9 @@ ngx_cmp_sockaddr(struct sockaddr *sa1, socklen_t slen1,
     return NGX_OK;
 }
 
-
+/*
+	获取sockaddr的port
+*/
 in_port_t
 ngx_inet_get_port(struct sockaddr *sa)
 {
@@ -1427,7 +1462,9 @@ ngx_inet_get_port(struct sockaddr *sa)
     }
 }
 
-
+/*
+	给sockaddr设置port
+*/
 void
 ngx_inet_set_port(struct sockaddr *sa, in_port_t port)
 {
@@ -1457,7 +1494,9 @@ ngx_inet_set_port(struct sockaddr *sa, in_port_t port)
     }
 }
 
-
+/*
+	判断sa是否为INADDR_ANY
+*/
 ngx_uint_t
 ngx_inet_wildcard(struct sockaddr *sa)
 {
@@ -1470,7 +1509,7 @@ ngx_inet_wildcard(struct sockaddr *sa)
 
     case AF_INET:
         sin = (struct sockaddr_in *) sa;
-
+		// 判断地址是否为0.0.0.0
         if (sin->sin_addr.s_addr == INADDR_ANY) {
             return 1;
         }
