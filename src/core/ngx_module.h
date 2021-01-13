@@ -14,7 +14,7 @@
 #include <ngx_core.h>
 #include <nginx.h>
 
-
+// module没有设置index
 #define NGX_MODULE_UNSET_INDEX  (ngx_uint_t) -1
 
 
@@ -196,7 +196,7 @@
 #else
 #define NGX_MODULE_SIGNATURE_34  "0"
 #endif
-
+// module signature签名?
 #define NGX_MODULE_SIGNATURE                                                  \
     NGX_MODULE_SIGNATURE_0 NGX_MODULE_SIGNATURE_1 NGX_MODULE_SIGNATURE_2      \
     NGX_MODULE_SIGNATURE_3 NGX_MODULE_SIGNATURE_4 NGX_MODULE_SIGNATURE_5      \
@@ -211,41 +211,49 @@
     NGX_MODULE_SIGNATURE_30 NGX_MODULE_SIGNATURE_31 NGX_MODULE_SIGNATURE_32   \
     NGX_MODULE_SIGNATURE_33 NGX_MODULE_SIGNATURE_34
 
-
+// 快速设置module结构体中的前几个值
 #define NGX_MODULE_V1                                                         \
     NGX_MODULE_UNSET_INDEX, NGX_MODULE_UNSET_INDEX,                           \
     NULL, 0, 0, nginx_version, NGX_MODULE_SIGNATURE
-
+// module结构体中的后面几个值padding
 #define NGX_MODULE_V1_PADDING  0, 0, 0, 0, 0, 0, 0, 0
 
 
 struct ngx_module_s {
+	// 二级module里面的index
     ngx_uint_t            ctx_index;
+    // 一级module里面的index
     ngx_uint_t            index;
-
+	// 模块名字
     char                 *name;
-
+	// 空闲0,1
     ngx_uint_t            spare0;
     ngx_uint_t            spare1;
-
+	// 版本号
     ngx_uint_t            version;
+    // 签名字段
     const char           *signature;
-
+	// 保存上下文的结构体指针
     void                 *ctx;
+    // 保存module中的命令的结构体指针
     ngx_command_t        *commands;
+    // 本module的type
     ngx_uint_t            type;
-
+	// master初始化函数指针
     ngx_int_t           (*init_master)(ngx_log_t *log);
-
+	// module初始化函数指针
     ngx_int_t           (*init_module)(ngx_cycle_t *cycle);
-
+	// 进程初始化函数指针
     ngx_int_t           (*init_process)(ngx_cycle_t *cycle);
+    // 线程初始化函数指针
     ngx_int_t           (*init_thread)(ngx_cycle_t *cycle);
+    // 线程退出函数指针
     void                (*exit_thread)(ngx_cycle_t *cycle);
+    // 进程退出函数指针
     void                (*exit_process)(ngx_cycle_t *cycle);
-
+	// master退出函数指针
     void                (*exit_master)(ngx_cycle_t *cycle);
-
+	// 保留字段
     uintptr_t             spare_hook0;
     uintptr_t             spare_hook1;
     uintptr_t             spare_hook2;
@@ -256,10 +264,13 @@ struct ngx_module_s {
     uintptr_t             spare_hook7;
 };
 
-
+// core module结构
 typedef struct {
+	// core module的名字
     ngx_str_t             name;
+    // 创建conf的函数指针
     void               *(*create_conf)(ngx_cycle_t *cycle);
+    // 初始化conf的函数指针
     char               *(*init_conf)(ngx_cycle_t *cycle, void *conf);
 } ngx_core_module_t;
 
@@ -273,10 +284,11 @@ ngx_int_t ngx_count_modules(ngx_cycle_t *cycle, ngx_uint_t type);
 ngx_int_t ngx_add_module(ngx_conf_t *cf, ngx_str_t *file,
     ngx_module_t *module, char **order);
 
-
+// ngx_modules数组
 extern ngx_module_t  *ngx_modules[];
+// modules最大值
 extern ngx_uint_t     ngx_max_module;
-
+// module name
 extern char          *ngx_module_names[];
 
 

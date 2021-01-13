@@ -52,42 +52,46 @@ static ngx_cached_open_file_t *
     uint32_t hash);
 static void ngx_open_file_cache_remove(ngx_event_t *ev);
 
-
+/*
+	open file cache初始化
+*/
 ngx_open_file_cache_t *
 ngx_open_file_cache_init(ngx_pool_t *pool, ngx_uint_t max, time_t inactive)
 {
     ngx_pool_cleanup_t     *cln;
     ngx_open_file_cache_t  *cache;
-
+	// 申请open file cache 结构体
     cache = ngx_palloc(pool, sizeof(ngx_open_file_cache_t));
     if (cache == NULL) {
         return NULL;
     }
-
+	// rbtree初始化
     ngx_rbtree_init(&cache->rbtree, &cache->sentinel,
                     ngx_open_file_cache_rbtree_insert_value);
-
+	// 过期队列初始化
     ngx_queue_init(&cache->expire_queue);
 
     cache->current = 0;
     cache->max = max;
     cache->inactive = inactive;
-
+	// 添加一个cleanup对象
     cln = ngx_pool_cleanup_add(pool, 0);
     if (cln == NULL) {
         return NULL;
     }
-
+	// 设置handler
     cln->handler = ngx_open_file_cache_cleanup;
     cln->data = cache;
 
     return cache;
 }
 
-
+/*
+	open file cache清理函数
+*/
 static void
 ngx_open_file_cache_cleanup(void *data)
-{
+{	// 找到对应结构体对象
     ngx_open_file_cache_t  *cache = data;
 
     ngx_queue_t             *q;
@@ -97,24 +101,24 @@ ngx_open_file_cache_cleanup(void *data)
                    "open file cache cleanup");
 
     for ( ;; ) {
-
+		// 如果超期队列为空,不处理
         if (ngx_queue_empty(&cache->expire_queue)) {
             break;
         }
-
+		// 取得超期队列最后一个节点
         q = ngx_queue_last(&cache->expire_queue);
-
+		// 通过q取得数据节点
         file = ngx_queue_data(q, ngx_cached_open_file_t, queue);
-
+		// 清理q节点
         ngx_queue_remove(q);
-
+		// 从红黑树中清理掉节点
         ngx_rbtree_delete(&cache->rbtree, &file->node);
-
+		// cache的current当前计数减1
         cache->current--;
 
         ngx_log_debug1(NGX_LOG_DEBUG_CORE, ngx_cycle->log, 0,
                        "delete cached open file: %s", file->name);
-
+		// 没有err标记,不是is_dir
         if (!file->err && !file->is_dir) {
             file->close = 1;
             file->count = 0;
@@ -125,7 +129,7 @@ ngx_open_file_cache_cleanup(void *data)
             ngx_free(file);
         }
     }
-
+	// 如果还存在current错误
     if (cache->current) {
         ngx_log_error(NGX_LOG_ALERT, ngx_cycle->log, 0,
                       "%ui items still left in open file cache",
@@ -155,9 +159,9 @@ ngx_open_cached_file(ngx_open_file_cache_t *cache, ngx_str_t *name,
 
     of->fd = NGX_INVALID_FILE;
     of->err = 0;
-
+	// cache为空
     if (cache == NULL) {
-
+		// test_only标记
         if (of->test_only) {
 
             if (ngx_file_info_wrapper(name, of, &fi, pool->log)
@@ -615,9 +619,9 @@ ngx_open_file_wrapper(ngx_str_t *name, ngx_open_file_info_t *of,
     ngx_int_t mode, ngx_int_t create, ngx_int_t access, ngx_log_t *log)
 {
     ngx_fd_t  fd;
-
+// 不存在openat
 #if !(NGX_HAVE_OPENAT)
-
+// 打开文件
     fd = ngx_open_file(name->data, mode, create, access);
 
     if (fd == NGX_INVALID_FILE) {
@@ -633,8 +637,9 @@ ngx_open_file_wrapper(ngx_str_t *name, ngx_open_file_info_t *of,
     u_char           *p, *cp, *end;
     ngx_fd_t          at_fd;
     ngx_str_t         at_name;
-
+	// 禁用符号链接关闭
     if (of->disable_symlinks == NGX_DISABLE_SYMLINKS_OFF) {
+		// 打开文件
         fd = ngx_open_file(name->data, mode, create, access);
 
         if (fd == NGX_INVALID_FILE) {
@@ -650,16 +655,16 @@ ngx_open_file_wrapper(ngx_str_t *name, ngx_open_file_info_t *of,
     end = p + name->len;
 
     at_name = *name;
-
+	// 存在disable_symlinks_from
     if (of->disable_symlinks_from) {
 
         cp = p + of->disable_symlinks_from;
-
+		// 临时将*cp赋值为0,代表路径名从开始到cp
         *cp = '\0';
-
+		// 打开目录,以O_SEACH|O_DIRECTORY
         at_fd = ngx_open_file(p, NGX_FILE_SEARCH|NGX_FILE_NONBLOCK,
                               NGX_FILE_OPEN, 0);
-
+		// 将p的值重新赋值过来
         *cp = '/';
 
         if (at_fd == NGX_INVALID_FILE) {
@@ -667,12 +672,13 @@ ngx_open_file_wrapper(ngx_str_t *name, ngx_open_file_info_t *of,
             of->failed = ngx_open_file_n;
             return NGX_INVALID_FILE;
         }
-
+		// 将at_name的len设置为disable_symlinks_from
         at_name.len = of->disable_symlinks_from;
         p = cp + 1;
 
     } else if (*p == '/') {
-
+    // 如果是以/开头,代表根目录
+		// 打开根目录
         at_fd = ngx_open_file("/",
                               NGX_FILE_SEARCH|NGX_FILE_NONBLOCK,
                               NGX_FILE_OPEN, 0);
@@ -684,13 +690,16 @@ ngx_open_file_wrapper(ngx_str_t *name, ngx_open_file_info_t *of,
         }
 
         at_name.len = 1;
+        // 偏移p
         p++;
 
     } else {
+    	// AT_FDCWD
         at_fd = NGX_AT_FDCWD;
     }
 
     for ( ;; ) {
+    // 查找/位置
         cp = ngx_strlchr(p, end, '/');
         if (cp == NULL) {
             break;
@@ -782,9 +791,9 @@ ngx_file_info_wrapper(ngx_str_t *name, ngx_open_file_info_t *of,
     ngx_file_info_t *fi, ngx_log_t *log)
 {
     ngx_int_t  rc;
-
+// 不存在openat
 #if !(NGX_HAVE_OPENAT)
-
+	// 获取file info信息
     rc = ngx_file_info(name->data, fi);
 
     if (rc == NGX_FILE_ERROR) {
@@ -796,11 +805,11 @@ ngx_file_info_wrapper(ngx_str_t *name, ngx_open_file_info_t *of,
     return rc;
 
 #else
-
+// 存在openat
     ngx_fd_t  fd;
-
+	// 禁用symlink标志关闭
     if (of->disable_symlinks == NGX_DISABLE_SYMLINKS_OFF) {
-
+		// 获取file info
         rc = ngx_file_info(name->data, fi);
 
         if (rc == NGX_FILE_ERROR) {
@@ -811,7 +820,7 @@ ngx_file_info_wrapper(ngx_str_t *name, ngx_open_file_info_t *of,
 
         return rc;
     }
-
+	// 
     fd = ngx_open_file_wrapper(name, of, NGX_FILE_RDONLY|NGX_FILE_NONBLOCK,
                                NGX_FILE_OPEN, 0, log);
 
@@ -1027,7 +1036,9 @@ ngx_open_file_cleanup(void *data)
     ngx_expire_old_cached_files(c->cache, 1, c->log);
 }
 
-
+/*
+	关闭file上的事件和释放file
+*/
 static void
 ngx_close_cached_file(ngx_open_file_cache_t *cache,
     ngx_cached_open_file_t *file, ngx_uint_t min_uses, ngx_log_t *log)
@@ -1035,22 +1046,22 @@ ngx_close_cached_file(ngx_open_file_cache_t *cache,
     ngx_log_debug5(NGX_LOG_DEBUG_CORE, log, 0,
                    "close cached open file: %s, fd:%d, c:%d, u:%d, %d",
                    file->name, file->fd, file->count, file->uses, file->close);
-
+	// 没有close标记
     if (!file->close) {
-
+		// 获取access time
         file->accessed = ngx_time();
-
+		// 从queue中移除最后一个
         ngx_queue_remove(&file->queue);
-
+		// 将queue插入到expire_queue头部
         ngx_queue_insert_head(&cache->expire_queue, &file->queue);
-
+		// 
         if (file->uses >= min_uses || file->count) {
             return;
         }
     }
-
+	// 删除file上的事件
     ngx_open_file_del_event(file);
-
+	// 还存在连接数,返回
     if (file->count) {
         return;
     }
@@ -1073,18 +1084,21 @@ ngx_close_cached_file(ngx_open_file_cache_t *cache,
     ngx_free(file);
 }
 
-
+/*
+	在打开的open_file中清理event
+*/
 static void
 ngx_open_file_del_event(ngx_cached_open_file_t *file)
 {
     if (file->event == NULL) {
         return;
     }
-
+	// 删除事件,只对kqueue相关
     (void) ngx_del_event(file->event, NGX_VNODE_EVENT,
                          file->count ? NGX_FLUSH_EVENT : NGX_CLOSE_EVENT);
-
+	// free data
     ngx_free(file->event->data);
+    // free event
     ngx_free(file->event);
     file->event = NULL;
     file->use_event = 0;
