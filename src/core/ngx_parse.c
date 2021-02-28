@@ -8,7 +8,9 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-
+/*
+	解析成K,M大小计量单位
+*/
 ssize_t
 ngx_parse_size(ngx_str_t *line)
 {
@@ -54,7 +56,9 @@ ngx_parse_size(ngx_str_t *line)
     return size;
 }
 
-
+/*
+	解析offset大小
+*/
 off_t
 ngx_parse_offset(ngx_str_t *line)
 {
@@ -107,7 +111,9 @@ ngx_parse_offset(ngx_str_t *line)
     return offset;
 }
 
-
+/*
+	时间解析
+*/
 ngx_int_t
 ngx_parse_time(ngx_str_t *line, ngx_uint_t is_sec)
 {

@@ -15,7 +15,7 @@
 
 #define ngx_proxy_protocol_parse_uint16(p)  ((p)[0] << 8 | (p)[1])
 
-
+// 协议首部
 typedef struct {
     u_char                                  signature[12];
     u_char                                  version_command;
@@ -23,7 +23,7 @@ typedef struct {
     u_char                                  len[2];
 } ngx_proxy_protocol_header_t;
 
-
+// inet ipv4地址
 typedef struct {
     u_char                                  src_addr[4];
     u_char                                  dst_addr[4];
@@ -31,7 +31,7 @@ typedef struct {
     u_char                                  dst_port[2];
 } ngx_proxy_protocol_inet_addrs_t;
 
-
+// inet6 ipv6地址
 typedef struct {
     u_char                                  src_addr[16];
     u_char                                  dst_addr[16];
@@ -43,7 +43,9 @@ typedef struct {
 static u_char *ngx_proxy_protocol_v2_read(ngx_connection_t *c, u_char *buf,
     u_char *last);
 
-
+/*
+	proxy read
+*/
 u_char *
 ngx_proxy_protocol_read(ngx_connection_t *c, u_char *buf, u_char *last)
 {
@@ -167,7 +169,9 @@ invalid:
     return NULL;
 }
 
-
+/*
+	proxy 协议写
+*/
 u_char *
 ngx_proxy_protocol_write(ngx_connection_t *c, u_char *buf, u_char *last)
 {
@@ -211,7 +215,9 @@ ngx_proxy_protocol_write(ngx_connection_t *c, u_char *buf, u_char *last)
     return ngx_slprintf(buf, last, " %ui %ui" CRLF, port, lport);
 }
 
-
+/*
+	proxy v2 协议读
+*/
 static u_char *
 ngx_proxy_protocol_v2_read(ngx_connection_t *c, u_char *buf, u_char *last)
 {

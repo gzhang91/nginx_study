@@ -10,7 +10,9 @@
 
 
 static ngx_uint_t  mday[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
-
+/*
+	解析时间
+*/
 time_t
 ngx_parse_http_time(u_char *value, size_t len)
 {

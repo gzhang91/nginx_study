@@ -28,7 +28,7 @@ static char *ngx_regex_init_conf(ngx_cycle_t *cycle, void *conf);
 static char *ngx_regex_pcre_jit(ngx_conf_t *cf, void *post, void *data);
 static ngx_conf_post_t  ngx_regex_pcre_jit_post = { ngx_regex_pcre_jit };
 
-
+// 只有一个命令pcre_jit
 static ngx_command_t  ngx_regex_commands[] = {
 
     { ngx_string("pcre_jit"),
@@ -41,7 +41,7 @@ static ngx_command_t  ngx_regex_commands[] = {
       ngx_null_command
 };
 
-
+// core module哦
 static ngx_core_module_t  ngx_regex_module_ctx = {
     ngx_string("regex"),
     ngx_regex_create_conf,

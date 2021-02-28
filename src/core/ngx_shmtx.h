@@ -14,8 +14,10 @@
 
 
 typedef struct {
+	// lock 锁对象
     ngx_atomic_t   lock;
 #if (NGX_HAVE_POSIX_SEM)
+	// sem 锁对象
     ngx_atomic_t   wait;
 #endif
 } ngx_shmtx_sh_t;
@@ -23,16 +25,23 @@ typedef struct {
 
 typedef struct {
 #if (NGX_HAVE_ATOMIC_OPS)
+	// lock 锁指针
     ngx_atomic_t  *lock;
 #if (NGX_HAVE_POSIX_SEM)
+	// sem 锁指针
     ngx_atomic_t  *wait;
+    // 信号量个数
     ngx_uint_t     semaphore;
+    // 信号量
     sem_t          sem;
 #endif
 #else
+	// 文件锁fd
     ngx_fd_t       fd;
+    // 文件名字
     u_char        *name;
 #endif
+	// spin 个数
     ngx_uint_t     spin;
 } ngx_shmtx_t;
 

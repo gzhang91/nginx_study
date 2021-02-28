@@ -11,23 +11,25 @@
 
 static ngx_radix_node_t *ngx_radix_alloc(ngx_radix_tree_t *tree);
 
-
+/*
+	创建基数树
+*/
 ngx_radix_tree_t *
 ngx_radix_tree_create(ngx_pool_t *pool, ngx_int_t preallocate)
 {
     uint32_t           key, mask, inc;
     ngx_radix_tree_t  *tree;
-
+	// 申请radix_tree_t结构体对象
     tree = ngx_palloc(pool, sizeof(ngx_radix_tree_t));
     if (tree == NULL) {
         return NULL;
     }
-
+	
     tree->pool = pool;
     tree->free = NULL;
     tree->start = NULL;
     tree->size = 0;
-
+	// 申请root节点
     tree->root = ngx_radix_alloc(tree);
     if (tree->root == NULL) {
         return NULL;
@@ -36,8 +38,9 @@ ngx_radix_tree_create(ngx_pool_t *pool, ngx_int_t preallocate)
     tree->root->right = NULL;
     tree->root->left = NULL;
     tree->root->parent = NULL;
+    // 设置NO_VALUE
     tree->root->value = NGX_RADIX_NO_VALUE;
-
+	// preallocate == 0
     if (preallocate == 0) {
         return tree;
     }
@@ -84,6 +87,7 @@ ngx_radix_tree_create(ngx_pool_t *pool, ngx_int_t preallocate)
     while (preallocate--) {
 
         key = 0;
+        // 每次往右移动会增加树的高度+1,所以使用|=0x80000000
         mask >>= 1;
         mask |= 0x80000000;
 
@@ -104,7 +108,9 @@ ngx_radix_tree_create(ngx_pool_t *pool, ngx_int_t preallocate)
     return tree;
 }
 
-
+/*
+	根据key来插入节点,根据mask来决定树的高度
+*/
 ngx_int_t
 ngx_radix32tree_insert(ngx_radix_tree_t *tree, uint32_t key, uint32_t mask,
     uintptr_t value)
@@ -118,41 +124,45 @@ ngx_radix32tree_insert(ngx_radix_tree_t *tree, uint32_t key, uint32_t mask,
     next = tree->root;
 
     while (bit & mask) {
+    	// 为1,表示右子树
         if (key & bit) {
             next = node->right;
 
         } else {
+        // 为0,表示左子树
             next = node->left;
         }
-
+		// 如果next为空代表找到叶子结点了
         if (next == NULL) {
             break;
         }
-
+		// bit右移
         bit >>= 1;
         node = next;
     }
-
+	// 出现next不为nul的情况已经达到mask映射的树高度的最低节点(叶子结点)
     if (next) {
+    	// 如果值设置了,表示已经存在了
         if (node->value != NGX_RADIX_NO_VALUE) {
             return NGX_BUSY;
         }
-
+		// 重新赋值
         node->value = value;
         return NGX_OK;
     }
-
+	// 出现next==nul,而且当前还没到达叶子结点
     while (bit & mask) {
+    	// 将下面每个左右子树都生成节点
         next = ngx_radix_alloc(tree);
         if (next == NULL) {
             return NGX_ERROR;
         }
-
+		// 赋值next的值
         next->right = NULL;
         next->left = NULL;
         next->parent = node;
         next->value = NGX_RADIX_NO_VALUE;
-
+		
         if (key & bit) {
             node->right = next;
 
@@ -163,7 +173,7 @@ ngx_radix32tree_insert(ngx_radix_tree_t *tree, uint32_t key, uint32_t mask,
         bit >>= 1;
         node = next;
     }
-
+	// 赋值value
     node->value = value;
 
     return NGX_OK;
@@ -264,7 +274,7 @@ ngx_radix32tree_find(ngx_radix_tree_t *tree, uint32_t key)
 
 
 #if (NGX_HAVE_INET6)
-
+// inet6 存在
 ngx_int_t
 ngx_radix128tree_insert(ngx_radix_tree_t *tree, u_char *key, u_char *mask,
     uintptr_t value)
@@ -464,14 +474,15 @@ static ngx_radix_node_t *
 ngx_radix_alloc(ngx_radix_tree_t *tree)
 {
     ngx_radix_node_t  *p;
-
+	// free列表存在
     if (tree->free) {
         p = tree->free;
         tree->free = tree->free->right;
         return p;
     }
-
+	// 如果tree->size < sizeof(ngx_radix_node_t)
     if (tree->size < sizeof(ngx_radix_node_t)) {
+    	// ngx_pagesize 对齐
         tree->start = ngx_pmemalign(tree->pool, ngx_pagesize, ngx_pagesize);
         if (tree->start == NULL) {
             return NULL;

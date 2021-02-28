@@ -18,18 +18,27 @@
 typedef struct ngx_radix_node_s  ngx_radix_node_t;
 
 struct ngx_radix_node_s {
+	// right指针
     ngx_radix_node_t  *right;
+    // left指针
     ngx_radix_node_t  *left;
+    // parent指针
     ngx_radix_node_t  *parent;
+    // 
     uintptr_t          value;
 };
 
 
 typedef struct {
+	// 基数树的root节点
     ngx_radix_node_t  *root;
+    // pool内存池
     ngx_pool_t        *pool;
+    // free节点
     ngx_radix_node_t  *free;
+    // start字符串数组
     char              *start;
+    // size
     size_t             size;
 } ngx_radix_tree_t;
 

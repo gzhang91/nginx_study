@@ -47,15 +47,21 @@ struct ngx_buf_s {
     /* the buf's content is mmap()ed and must not be changed */
     // 是否mmap
     unsigned         mmap:1;
-
+	// 是否recycled
     unsigned         recycled:1;
+    // 是否in_file
     unsigned         in_file:1;
+    // 是否flush
     unsigned         flush:1;
+    // 是否同步
     unsigned         sync:1;
+    // 是否是上次缓存过
     unsigned         last_buf:1;
+    // 是否上次在chain中
     unsigned         last_in_chain:1;
-
+	// last_shadow标记
     unsigned         last_shadow:1;
+    // 临时文件标记
     unsigned         temp_file:1;
 
     /* STUB */ int   num;
@@ -82,16 +88,25 @@ typedef void (*ngx_output_chain_aio_pt)(ngx_output_chain_ctx_t *ctx,
     ngx_file_t *file);
 
 struct ngx_output_chain_ctx_s {
+	// buf内容
     ngx_buf_t                   *buf;
+    // income buf链表
     ngx_chain_t                 *in;
+    // free buf链表
     ngx_chain_t                 *free;
+    // busy buf链表
     ngx_chain_t                 *busy;
-
+	// sendfile标记
     unsigned                     sendfile:1;
+    // directio标记
     unsigned                     directio:1;
+    // 没有对齐
     unsigned                     unaligned:1;
+    // 在memory中
     unsigned                     need_in_memory:1;
+    // 临时的
     unsigned                     need_in_temp:1;
+    // aio标记
     unsigned                     aio:1;
 
 #if (NGX_HAVE_FILE_AIO || NGX_COMPAT)
@@ -106,15 +121,19 @@ struct ngx_output_chain_ctx_s {
                                                  ngx_file_t *file);
     ngx_thread_task_t           *thread_task;
 #endif
-
+	// 对齐大小
     off_t                        alignment;
-
+	// pool内存池
     ngx_pool_t                  *pool;
+    // 分配的大小
     ngx_int_t                    allocated;
+    // bufs记录结构
     ngx_bufs_t                   bufs;
+    // tag标记
     ngx_buf_tag_t                tag;
-
+	// filter输出句柄
     ngx_output_chain_filter_pt   output_filter;
+    // filter输出上下文参数
     void                        *filter_ctx;
 };
 
@@ -130,18 +149,19 @@ typedef struct {
 
 #define NGX_CHAIN_ERROR     (ngx_chain_t *) NGX_ERROR
 
-
+// buf是否在memory
 #define ngx_buf_in_memory(b)        (b->temporary || b->memory || b->mmap)
+// buf是否只在memory,不在文件中
 #define ngx_buf_in_memory_only(b)   (ngx_buf_in_memory(b) && !b->in_file)
-
+// 特殊buf
 #define ngx_buf_special(b)                                                   \
     ((b->flush || b->last_buf || b->sync)                                    \
      && !ngx_buf_in_memory(b) && !b->in_file)
-
+// sync标记
 #define ngx_buf_sync_only(b)                                                 \
     (b->sync                                                                 \
      && !ngx_buf_in_memory(b) && !b->in_file && !b->flush && !b->last_buf)
-
+// 获取buf大小,如果在内存中,使用pos-last;如果在文件中,file_last-file_pos
 #define ngx_buf_size(b)                                                      \
     (ngx_buf_in_memory(b) ? (off_t) (b->last - b->pos):                      \
                             (b->file_last - b->file_pos))
