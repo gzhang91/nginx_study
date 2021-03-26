@@ -9,14 +9,18 @@
 #include <ngx_core.h>
 #include <ngx_event.h>
 
-
+// 默认为512 个连接
 #define DEFAULT_CONNECTIONS  512
 
-
+// kqueue模块
 extern ngx_module_t ngx_kqueue_module;
+// eventport模块
 extern ngx_module_t ngx_eventport_module;
+// devpoll模块
 extern ngx_module_t ngx_devpoll_module;
+// epoll模块
 extern ngx_module_t ngx_epoll_module;
+// select模块
 extern ngx_module_t ngx_select_module;
 
 
@@ -47,13 +51,19 @@ ngx_event_actions_t   ngx_event_actions;
 static ngx_atomic_t   connection_counter = 1;
 ngx_atomic_t         *ngx_connection_counter = &connection_counter;
 
-
+// accept mutex 计数器指针？
 ngx_atomic_t         *ngx_accept_mutex_ptr;
+// mutex锁
 ngx_shmtx_t           ngx_accept_mutex;
+// 使用use accept mutex个数
 ngx_uint_t            ngx_use_accept_mutex;
+// accept events个数
 ngx_uint_t            ngx_accept_events;
+// mutex held数
 ngx_uint_t            ngx_accept_mutex_held;
+// accept delay mutex数
 ngx_msec_t            ngx_accept_mutex_delay;
+// accept disabled数
 ngx_int_t             ngx_accept_disabled;
 
 
@@ -77,7 +87,7 @@ ngx_atomic_t         *ngx_stat_waiting = &ngx_stat_waiting0;
 #endif
 
 
-
+// events模块的唯一一个命令，表示我将要使用的event模型(epoll,select...)
 static ngx_command_t  ngx_events_commands[] = {
 
     { ngx_string("events"),
@@ -90,7 +100,7 @@ static ngx_command_t  ngx_events_commands[] = {
       ngx_null_command
 };
 
-
+// event模块的上下文环境
 static ngx_core_module_t  ngx_events_module_ctx = {
     ngx_string("events"),
     NULL,
@@ -116,7 +126,7 @@ ngx_module_t  ngx_events_module = {
 
 static ngx_str_t  event_core_name = ngx_string("event_core");
 
-
+// event block中可以识别的命令
 static ngx_command_t  ngx_event_core_commands[] = {
 
     { ngx_string("worker_connections"),
@@ -164,7 +174,7 @@ static ngx_command_t  ngx_event_core_commands[] = {
       ngx_null_command
 };
 
-
+// event的代理core模块
 static ngx_event_module_t  ngx_event_core_module_ctx = {
     &event_core_name,
     ngx_event_core_create_conf,            /* create configuration */
@@ -173,7 +183,7 @@ static ngx_event_module_t  ngx_event_core_module_ctx = {
     { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL }
 };
 
-
+// 代理core event模块的module结构体
 ngx_module_t  ngx_event_core_module = {
     NGX_MODULE_V1,
     &ngx_event_core_module_ctx,            /* module context */
@@ -189,18 +199,22 @@ ngx_module_t  ngx_event_core_module = {
     NGX_MODULE_V1_PADDING
 };
 
-
+/*
+	事件处理的核心函数，可以叫成分解器
+*/
 void
 ngx_process_events_and_timers(ngx_cycle_t *cycle)
 {
     ngx_uint_t  flags;
     ngx_msec_t  timer, delta;
 
+	// 如果存在timer_resolution值，不需要查找定时器了
     if (ngx_timer_resolution) {
         timer = NGX_TIMER_INFINITE;
         flags = 0;
 
     } else {
+    // 查找将要到期最小定时器
         timer = ngx_event_find_timer();
         flags = NGX_UPDATE_TIME;
 
@@ -214,20 +228,23 @@ ngx_process_events_and_timers(ngx_cycle_t *cycle)
 
 #endif
     }
-
+	// 判断是否使用accept mutex锁
     if (ngx_use_accept_mutex) {
+    	// 如果disabled值还是正值，表示还没有触发accept负载均衡，只需要--
         if (ngx_accept_disabled > 0) {
             ngx_accept_disabled--;
 
         } else {
+       	// 否则触发了accept的负载均衡，先要获取锁
             if (ngx_trylock_accept_mutex(cycle) == NGX_ERROR) {
                 return;
             }
-
+			// 如果持有标记为1，表示上面上锁成功，需要设置延后事件(post_event)标记
             if (ngx_accept_mutex_held) {
                 flags |= NGX_POST_EVENTS;
 
             } else {
+            // 否则没有上锁成功啥也没捞到，只能等了，判断有没有设置accept_mutex_delay值
                 if (timer == NGX_TIMER_INFINITE
                     || timer > ngx_accept_mutex_delay)
                 {
@@ -237,25 +254,26 @@ ngx_process_events_and_timers(ngx_cycle_t *cycle)
         }
     }
 
+	// 尽管我不能接收accept事件，但是我还是需要处理事件的！
     delta = ngx_current_msec;
-
+	// 最核心的事件处理函数
     (void) ngx_process_events(cycle, timer, flags);
-
+	// 获取事件处理的delta
     delta = ngx_current_msec - delta;
 
     ngx_log_debug1(NGX_LOG_DEBUG_EVENT, cycle->log, 0,
                    "timer delta: %M", delta);
-
+	// 处理延后的accept事件
     ngx_event_process_posted(cycle, &ngx_posted_accept_events);
-
+	// 如果存在持有锁的标记，先需要释放锁
     if (ngx_accept_mutex_held) {
         ngx_shmtx_unlock(&ngx_accept_mutex);
     }
-
+	// 如果delta>0需要处理超时事件
     if (delta) {
         ngx_event_expire_timers();
     }
-
+	// 处理延后的读写事件
     ngx_event_process_posted(cycle, &ngx_posted_events);
 }
 

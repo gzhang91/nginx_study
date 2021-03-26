@@ -318,6 +318,7 @@ ngx_event_accept(ngx_event_t *ev)
 ngx_int_t
 ngx_trylock_accept_mutex(ngx_cycle_t *cycle)
 {
+	// 试着上锁
     if (ngx_shmtx_trylock(&ngx_accept_mutex)) {
 
         ngx_log_debug0(NGX_LOG_DEBUG_EVENT, cycle->log, 0,
@@ -326,21 +327,21 @@ ngx_trylock_accept_mutex(ngx_cycle_t *cycle)
         if (ngx_accept_mutex_held && ngx_accept_events == 0) {
             return NGX_OK;
         }
-
+		// 激活可以处理监听事件
         if (ngx_enable_accept_events(cycle) == NGX_ERROR) {
             ngx_shmtx_unlock(&ngx_accept_mutex);
             return NGX_ERROR;
         }
-
+		// 将accept_events设置为0，将accept_mutex_held设置为1，表示持有锁
         ngx_accept_events = 0;
         ngx_accept_mutex_held = 1;
 
         return NGX_OK;
     }
-
+	// 上锁失败啦
     ngx_log_debug1(NGX_LOG_DEBUG_EVENT, cycle->log, 0,
                    "accept mutex lock failed: %ui", ngx_accept_mutex_held);
-
+	// 如果之前持有锁说明之前已经运行接收accept事件，现在上锁失败需要禁止接收accept事件，同时将持有锁的标记置为0
     if (ngx_accept_mutex_held) {
         if (ngx_disable_accept_events(cycle, 0) == NGX_ERROR) {
             return NGX_ERROR;
