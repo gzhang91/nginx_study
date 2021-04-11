@@ -21,7 +21,7 @@ static ngx_rbtree_node_t  ngx_event_timer_sentinel;
 
 ngx_int_t
 ngx_event_timer_init(ngx_log_t *log)
-{
+{	// 初始化定时器timer_rbtree
     ngx_rbtree_init(&ngx_event_timer_rbtree, &ngx_event_timer_sentinel,
                     ngx_rbtree_insert_timer_value);
 

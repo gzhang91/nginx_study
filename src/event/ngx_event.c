@@ -345,15 +345,15 @@ ngx_handle_read_event(ngx_event_t *rev, ngx_uint_t flags)
     return NGX_OK;
 }
 
-
+// write写事件
 ngx_int_t
 ngx_handle_write_event(ngx_event_t *wev, size_t lowat)
 {
     ngx_connection_t  *c;
-
+	// 如果存在lowat,进行设置
     if (lowat) {
         c = wev->data;
-
+	
         if (ngx_send_lowat(c, lowat) == NGX_ERROR) {
             return NGX_ERROR;
         }
@@ -424,7 +424,7 @@ ngx_handle_write_event(ngx_event_t *wev, size_t lowat)
     return NGX_OK;
 }
 
-
+// 主要监听connection的初始化
 static char *
 ngx_event_init_conf(ngx_cycle_t *cycle, void *conf)
 {
@@ -477,7 +477,7 @@ ngx_event_init_conf(ngx_cycle_t *cycle, void *conf)
     return NGX_CONF_OK;
 }
 
-
+// event_module初始化，设置accept_mutex共享内存
 static ngx_int_t
 ngx_event_module_init(ngx_cycle_t *cycle)
 {
@@ -488,24 +488,25 @@ ngx_event_module_init(ngx_cycle_t *cycle)
     ngx_time_t          *tp;
     ngx_core_conf_t     *ccf;
     ngx_event_conf_t    *ecf;
-
+	// 获取event_module的配置
     cf = ngx_get_conf(cycle->conf_ctx, ngx_events_module);
+    // 获取ngx_event_conf_t配置结构体
     ecf = (*cf)[ngx_event_core_module.ctx_index];
-
+	// 如果没有ngx_test_config这个标记，如果只有PROCESS_MASTER代表出错
     if (!ngx_test_config && ngx_process <= NGX_PROCESS_MASTER) {
         ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
                       "using the \"%s\" event method", ecf->name);
     }
-
+	// 获取core_conf_t结构体对象
     ccf = (ngx_core_conf_t *) ngx_get_conf(cycle->conf_ctx, ngx_core_module);
-
+	// 找到timer_resolution
     ngx_timer_resolution = ccf->timer_resolution;
 
 #if !(NGX_WIN32)
     {
     ngx_int_t      limit;
     struct rlimit  rlmt;
-
+	// 获取rlimit中的RLIMIT_NOFILE值
     if (getrlimit(RLIMIT_NOFILE, &rlmt) == -1) {
         ngx_log_error(NGX_LOG_ALERT, cycle->log, ngx_errno,
                       "getrlimit(RLIMIT_NOFILE) failed, ignored");
@@ -556,11 +557,11 @@ ngx_event_module_init(ngx_cycle_t *cycle)
            + cl;         /* ngx_stat_waiting */
 
 #endif
-
+	// 共享内存大小size
     shm.size = size;
     ngx_str_set(&shm.name, "nginx_shared_zone");
     shm.log = cycle->log;
-
+	// 创建共享内存(mmap/shmget)
     if (ngx_shm_alloc(&shm) != NGX_OK) {
         return NGX_ERROR;
     }
@@ -621,7 +622,7 @@ ngx_timer_signal_handler(int signo)
 
 #endif
 
-
+// 进程的事件方面的初始化
 static ngx_int_t
 ngx_event_process_init(ngx_cycle_t *cycle)
 {
@@ -632,10 +633,11 @@ ngx_event_process_init(ngx_cycle_t *cycle)
     ngx_core_conf_t     *ccf;
     ngx_event_conf_t    *ecf;
     ngx_event_module_t  *module;
-
+	// 获取core_module的数组地址
     ccf = (ngx_core_conf_t *) ngx_get_conf(cycle->conf_ctx, ngx_core_module);
+	// 获取event_core_module的地址
     ecf = ngx_event_get_conf(cycle->conf_ctx, ngx_event_core_module);
-
+	// 设置accept_mutex,mutex_held,mutex_delay标记
     if (ccf->master && ccf->worker_processes > 1 && ecf->accept_mutex) {
         ngx_use_accept_mutex = 1;
         ngx_accept_mutex_held = 0;
@@ -655,8 +657,9 @@ ngx_event_process_init(ngx_cycle_t *cycle)
     ngx_use_accept_mutex = 0;
 
 #endif
-
+	// 初始化posted_accept_events队列
     ngx_queue_init(&ngx_posted_accept_events);
+    // 初始化posted_events队列
     ngx_queue_init(&ngx_posted_events);
 
     if (ngx_event_timer_init(cycle->log) == NGX_ERROR) {
@@ -673,7 +676,7 @@ ngx_event_process_init(ngx_cycle_t *cycle)
         }
 
         module = cycle->modules[m]->ctx;
-
+		// 调用某个事件处理器(select,poll,epoll)的init函数
         if (module->actions.init(cycle, ngx_timer_resolution) != NGX_OK) {
             /* fatal */
             exit(2);
@@ -737,7 +740,7 @@ ngx_event_process_init(ngx_cycle_t *cycle)
     }
 
 #endif
-
+	// 分配connections
     cycle->connections =
         ngx_alloc(sizeof(ngx_connection_t) * cycle->connection_n, cycle->log);
     if (cycle->connections == NULL) {
@@ -751,7 +754,7 @@ ngx_event_process_init(ngx_cycle_t *cycle)
     if (cycle->read_events == NULL) {
         return NGX_ERROR;
     }
-
+	// 将closed和instance设置为1
     rev = cycle->read_events;
     for (i = 0; i < cycle->connection_n; i++) {
         rev[i].closed = 1;
@@ -763,7 +766,7 @@ ngx_event_process_init(ngx_cycle_t *cycle)
     if (cycle->write_events == NULL) {
         return NGX_ERROR;
     }
-
+	// 设置write event的closed为1
     wev = cycle->write_events;
     for (i = 0; i < cycle->connection_n; i++) {
         wev[i].closed = 1;
@@ -771,7 +774,7 @@ ngx_event_process_init(ngx_cycle_t *cycle)
 
     i = cycle->connection_n;
     next = NULL;
-
+	// 将connection串接起来，并将read,write事件对应填写进去
     do {
         i--;
 
@@ -875,7 +878,7 @@ ngx_event_process_init(ngx_cycle_t *cycle)
         }
 
 #else
-
+		// 将rev的回调函数设置成event_accept(tcp)或者event_recvmsg(udp)
         rev->handler = (c->type == SOCK_STREAM) ? ngx_event_accept
                                                 : ngx_event_recvmsg;
 
@@ -922,7 +925,7 @@ ngx_event_process_init(ngx_cycle_t *cycle)
     return NGX_OK;
 }
 
-
+//socket的 send lowat设置
 ngx_int_t
 ngx_send_lowat(ngx_connection_t *c, size_t lowat)
 {
@@ -942,7 +945,7 @@ ngx_send_lowat(ngx_connection_t *c, size_t lowat)
     }
 
     sndlowat = (int) lowat;
-
+	// 接受最低水位
     if (setsockopt(c->fd, SOL_SOCKET, SO_SNDLOWAT,
                    (const void *) &sndlowat, sizeof(int))
         == -1)
@@ -951,13 +954,13 @@ ngx_send_lowat(ngx_connection_t *c, size_t lowat)
                              "setsockopt(SO_SNDLOWAT) failed");
         return NGX_ERROR;
     }
-
+	// 将sndlowat标记设置为1
     c->sndlowat = 1;
 
     return NGX_OK;
 }
 
-
+// event "{"的回调解析函数
 static char *
 ngx_events_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
@@ -986,7 +989,7 @@ ngx_events_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     *(void **) conf = ctx;
-
+	// 先调用create_conf
     for (i = 0; cf->cycle->modules[i]; i++) {
         if (cf->cycle->modules[i]->type != NGX_EVENT_MODULE) {
             continue;
@@ -1007,7 +1010,7 @@ ngx_events_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     cf->ctx = ctx;
     cf->module_type = NGX_EVENT_MODULE;
     cf->cmd_type = NGX_EVENT_CONF;
-
+	// 解析event{}里面的命令
     rv = ngx_conf_parse(cf, NULL);
 
     *cf = pcf;
@@ -1015,7 +1018,7 @@ ngx_events_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if (rv != NGX_CONF_OK) {
         return rv;
     }
-
+	// 再调用init_conf
     for (i = 0; cf->cycle->modules[i]; i++) {
         if (cf->cycle->modules[i]->type != NGX_EVENT_MODULE) {
             continue;
@@ -1035,7 +1038,7 @@ ngx_events_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
-
+// event中设置的connection的处理函数
 static char *
 ngx_event_connections(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
@@ -1061,7 +1064,7 @@ ngx_event_connections(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
-
+// use的处理函数
 static char *
 ngx_event_use(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
@@ -1124,7 +1127,7 @@ ngx_event_use(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_ERROR;
 }
 
-
+// debug_connection的处理函数
 static char *
 ngx_event_debug_connection(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
@@ -1228,7 +1231,7 @@ ngx_event_debug_connection(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
-
+// event 的 create_conf句柄函数
 static void *
 ngx_event_core_create_conf(ngx_cycle_t *cycle)
 {
@@ -1259,7 +1262,7 @@ ngx_event_core_create_conf(ngx_cycle_t *cycle)
     return ecf;
 }
 
-
+// event的 init_conf句柄函数
 static char *
 ngx_event_core_init_conf(ngx_cycle_t *cycle, void *conf)
 {
@@ -1277,7 +1280,7 @@ ngx_event_core_init_conf(ngx_cycle_t *cycle, void *conf)
 #if (NGX_HAVE_EPOLL) && !(NGX_TEST_BUILD_EPOLL)
 
     fd = epoll_create(100);
-
+	// 判断下使用epoll能否成功
     if (fd != -1) {
         (void) close(fd);
         module = &ngx_epoll_module;
@@ -1301,7 +1304,7 @@ ngx_event_core_init_conf(ngx_cycle_t *cycle, void *conf)
 #endif
 
 #if (NGX_HAVE_SELECT)
-
+	// 使用select模块
     if (module == NULL) {
         module = &ngx_select_module;
     }
@@ -1331,17 +1334,19 @@ ngx_event_core_init_conf(ngx_cycle_t *cycle, void *conf)
         ngx_log_error(NGX_LOG_EMERG, cycle->log, 0, "no events module found");
         return NGX_CONF_ERROR;
     }
-
+	// 默认512个连接
     ngx_conf_init_uint_value(ecf->connections, DEFAULT_CONNECTIONS);
     cycle->connection_n = ecf->connections;
-
+	// 默认使用的事件模型
     ngx_conf_init_uint_value(ecf->use, module->ctx_index);
 
     event_module = module->ctx;
     ngx_conf_init_ptr_value(ecf->name, event_module->name->data);
-
+	// 默认将multi_accept设置为0
     ngx_conf_init_value(ecf->multi_accept, 0);
+    // 默认将accept_mutex设置0
     ngx_conf_init_value(ecf->accept_mutex, 0);
+    // 默认设置accept_mutex_delay为500
     ngx_conf_init_msec_value(ecf->accept_mutex_delay, 500);
 
     return NGX_CONF_OK;
