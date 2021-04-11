@@ -7,48 +7,61 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-
+// PAGE_MASK掩码
 #define NGX_SLAB_PAGE_MASK   3
+// PAGE掩码
 #define NGX_SLAB_PAGE        0
+// BIG PAGE掩码
 #define NGX_SLAB_BIG         1
+// EXACT掩码
 #define NGX_SLAB_EXACT       2
+// SMALL页面页码
 #define NGX_SLAB_SMALL       3
-
+// PTR_SIZE=4
 #if (NGX_PTR_SIZE == 4)
-
+// PAGE_FREE标记
 #define NGX_SLAB_PAGE_FREE   0
+// PAGE BUSY最大值
 #define NGX_SLAB_PAGE_BUSY   0xffffffff
+// PAGE START
 #define NGX_SLAB_PAGE_START  0x80000000
-
+// SHIFT_MASK掩码
 #define NGX_SLAB_SHIFT_MASK  0x0000000f
+// MAP MASK掩码
 #define NGX_SLAB_MAP_MASK    0xffff0000
+// MAP SHIFT 数目
 #define NGX_SLAB_MAP_SHIFT   16
-
+// SLAB BUSY 标记
 #define NGX_SLAB_BUSY        0xffffffff
-
+// PTR_SIZE=8
 #else /* (NGX_PTR_SIZE == 8) */
-
+// PAGE FREE标记
 #define NGX_SLAB_PAGE_FREE   0
+// PAGE BUSY最大值
 #define NGX_SLAB_PAGE_BUSY   0xffffffffffffffff
+// PAGE START标记
 #define NGX_SLAB_PAGE_START  0x8000000000000000
-
+// SHIFT_MASK掩码
 #define NGX_SLAB_SHIFT_MASK  0x000000000000000f
+// MAP MASK掩码
 #define NGX_SLAB_MAP_MASK    0xffffffff00000000
+// MAP SHIFT 数目
 #define NGX_SLAB_MAP_SHIFT   32
-
+// BUSY标记
 #define NGX_SLAB_BUSY        0xffffffffffffffff
 
 #endif
 
-
+// 获取ngx_slab_page_t在结构体中的地址
 #define ngx_slab_slots(pool)                                                  \
     (ngx_slab_page_t *) ((u_char *) (pool) + sizeof(ngx_slab_pool_t))
-
+// 根据prev & PAGE_MASK来判断page类型
 #define ngx_slab_page_type(page)   ((page)->prev & NGX_SLAB_PAGE_MASK)
-
+// prev & 1111 1111 1111 1100(short类型为例)
 #define ngx_slab_page_prev(page)                                              \
     (ngx_slab_page_t *) ((page)->prev & ~NGX_SLAB_PAGE_MASK)
-
+// ngx_pagesize_shift为pagesize=4K=2^12的ngx_pagesize_shift=12
+// 得到page addr
 #define ngx_slab_page_addr(pool, page)                                        \
     ((((page) - (pool)->pages) << ngx_pagesize_shift)                         \
      + (uintptr_t) (pool)->start)
@@ -76,7 +89,9 @@ static void ngx_slab_free_pages(ngx_slab_pool_t *pool, ngx_slab_page_t *page,
 static void ngx_slab_error(ngx_slab_pool_t *pool, ngx_uint_t level,
     char *text);
 
-
+// ngx_slab_max_size = ngx_pagesize / 2; 为 4k/2=2k
+// ngx_slab_exact_size=ngx_pagesize/(8*8)=4k/64 exact page 数目
+// ngx_slab_exact_shift=4k/64=64=2^6 为 ngx_slab_exact_shift=6
 static ngx_uint_t  ngx_slab_max_size;
 static ngx_uint_t  ngx_slab_exact_size;
 static ngx_uint_t  ngx_slab_exact_shift;
