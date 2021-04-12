@@ -12,7 +12,7 @@
 
 #define NGX_SSL_PASSWORD_BUFFER_SIZE  4096
 
-
+// conf配置选项
 typedef struct {
     ngx_uint_t  engine;   /* unsigned  engine:1; */
 } ngx_openssl_conf_t;
@@ -102,7 +102,7 @@ static ngx_command_t  ngx_openssl_commands[] = {
       ngx_null_command
 };
 
-
+// openssl core module
 static ngx_core_module_t  ngx_openssl_module_ctx = {
     ngx_string("openssl"),
     ngx_openssl_create_conf,
@@ -135,12 +135,12 @@ int  ngx_ssl_next_certificate_index;
 int  ngx_ssl_certificate_name_index;
 int  ngx_ssl_stapling_index;
 
-
+// ssl 初始化
 ngx_int_t
 ngx_ssl_init(ngx_log_t *log)
 {
 #if OPENSSL_VERSION_NUMBER >= 0x10100003L
-
+	// 直接调用init_ssl
     if (OPENSSL_init_ssl(OPENSSL_INIT_LOAD_CONFIG, NULL) == 0) {
         ngx_ssl_error(NGX_LOG_ALERT, log, 0, "OPENSSL_init_ssl() failed");
         return NGX_ERROR;
@@ -154,7 +154,7 @@ ngx_ssl_init(ngx_log_t *log)
     ERR_clear_error();
 
 #else
-
+	// 需要定义一些初始化函数
     OPENSSL_config(NULL);
 
     SSL_library_init();
@@ -246,7 +246,7 @@ ngx_ssl_init(ngx_log_t *log)
     return NGX_OK;
 }
 
-
+// 创建ssl套接字
 ngx_int_t
 ngx_ssl_create(ngx_ssl_t *ssl, ngx_uint_t protocols, void *data)
 {
@@ -385,7 +385,7 @@ ngx_ssl_create(ngx_ssl_t *ssl, ngx_uint_t protocols, void *data)
     return NGX_OK;
 }
 
-
+// 加载全部的证书
 ngx_int_t
 ngx_ssl_certificates(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_array_t *certs,
     ngx_array_t *keys, ngx_array_t *passwords)
@@ -408,7 +408,7 @@ ngx_ssl_certificates(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_array_t *certs,
     return NGX_OK;
 }
 
-
+// 加载某个证书
 ngx_int_t
 ngx_ssl_certificate(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *cert,
     ngx_str_t *key, ngx_array_t *passwords)
@@ -417,7 +417,7 @@ ngx_ssl_certificate(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *cert,
     X509            *x509;
     EVP_PKEY        *pkey;
     STACK_OF(X509)  *chain;
-
+	// 加载x509
     x509 = ngx_ssl_load_certificate(cf->pool, &err, cert, &chain);
     if (x509 == NULL) {
         if (err != NULL) {
@@ -505,7 +505,7 @@ ngx_ssl_certificate(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *cert,
     sk_X509_free(chain);
     }
 #endif
-
+	// 加载key
     pkey = ngx_ssl_load_certificate_key(cf->pool, &err, key, passwords);
     if (pkey == NULL) {
         if (err != NULL) {
@@ -529,7 +529,7 @@ ngx_ssl_certificate(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *cert,
     return NGX_OK;
 }
 
-
+// 根据connection加载证书
 ngx_int_t
 ngx_ssl_connection_certificate(ngx_connection_t *c, ngx_pool_t *pool,
     ngx_str_t *cert, ngx_str_t *key, ngx_array_t *passwords)
@@ -600,7 +600,7 @@ ngx_ssl_connection_certificate(ngx_connection_t *c, ngx_pool_t *pool,
     return NGX_OK;
 }
 
-
+// 加载证书
 static X509 *
 ngx_ssl_load_certificate(ngx_pool_t *pool, char **err, ngx_str_t *cert,
     STACK_OF(X509) **chain)
@@ -690,7 +690,7 @@ ngx_ssl_load_certificate(ngx_pool_t *pool, char **err, ngx_str_t *cert,
     return x509;
 }
 
-
+// 加载证书的key
 static EVP_PKEY *
 ngx_ssl_load_certificate_key(ngx_pool_t *pool, char **err,
     ngx_str_t *key, ngx_array_t *passwords)
@@ -807,7 +807,7 @@ ngx_ssl_load_certificate_key(ngx_pool_t *pool, char **err,
     return pkey;
 }
 
-
+// ssl 填入password的回调函数
 static int
 ngx_ssl_password_callback(char *buf, int size, int rwflag, void *userdata)
 {
@@ -1100,7 +1100,7 @@ ngx_ssl_rsa512_key_callback(ngx_ssl_conn_t *ssl_conn, int is_export,
     return key;
 }
 
-
+// 读取password文件
 ngx_array_t *
 ngx_ssl_read_password_file(ngx_conf_t *cf, ngx_str_t *file)
 {
@@ -1458,7 +1458,7 @@ ngx_ssl_early_data(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_uint_t enable)
     return NGX_OK;
 }
 
-
+// session cache缓存
 ngx_int_t
 ngx_ssl_client_session_cache(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_uint_t enable)
 {
@@ -1475,7 +1475,7 @@ ngx_ssl_client_session_cache(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_uint_t enable)
     return NGX_OK;
 }
 
-
+// 获取新的client session
 static int
 ngx_ssl_new_client_session(ngx_ssl_conn_t *ssl_conn, ngx_ssl_session_t *sess)
 {
@@ -1494,7 +1494,7 @@ ngx_ssl_new_client_session(ngx_ssl_conn_t *ssl_conn, ngx_ssl_session_t *sess)
     return 0;
 }
 
-
+// 创建ssl connection
 ngx_int_t
 ngx_ssl_create_connection(ngx_ssl_t *ssl, ngx_connection_t *c, ngx_uint_t flags)
 {
@@ -1574,7 +1574,7 @@ ngx_ssl_get0_session(ngx_connection_t *c)
     return SSL_get0_session(c->ssl->connection);
 }
 
-
+// 设置session
 ngx_int_t
 ngx_ssl_set_session(ngx_connection_t *c, ngx_ssl_session_t *session)
 {
@@ -1588,7 +1588,7 @@ ngx_ssl_set_session(ngx_connection_t *c, ngx_ssl_session_t *session)
     return NGX_OK;
 }
 
-
+// ssl 握手
 ngx_int_t
 ngx_ssl_handshake(ngx_connection_t *c)
 {
@@ -1867,7 +1867,7 @@ ngx_ssl_handshake_log(ngx_connection_t *c)
 
 #endif
 
-
+// handshake成功的回调函数
 static void
 ngx_ssl_handshake_handler(ngx_event_t *ev)
 {
@@ -1890,7 +1890,7 @@ ngx_ssl_handshake_handler(ngx_event_t *ev)
     c->ssl->handler(c);
 }
 
-
+// recv chain函数
 ssize_t
 ngx_ssl_recv_chain(ngx_connection_t *c, ngx_chain_t *cl, off_t limit)
 {
@@ -1949,7 +1949,7 @@ ngx_ssl_recv_chain(ngx_connection_t *c, ngx_chain_t *cl, off_t limit)
     }
 }
 
-
+// recv函数
 ssize_t
 ngx_ssl_recv(ngx_connection_t *c, u_char *buf, size_t size)
 {
@@ -3026,7 +3026,7 @@ ngx_ssl_error(ngx_uint_t level, ngx_log_t *log, ngx_err_t err, char *fmt, ...)
     ngx_log_error(level, log, err, "%*s", p - errstr, errstr);
 }
 
-
+// session cache
 ngx_int_t
 ngx_ssl_session_cache(ngx_ssl_t *ssl, ngx_str_t *sess_ctx,
     ngx_array_t *certificates, ssize_t builtin_session_cache,
@@ -3217,7 +3217,7 @@ failed:
     return NGX_ERROR;
 }
 
-
+// 将session 保存到红黑树中
 ngx_int_t
 ngx_ssl_session_cache_init(ngx_shm_zone_t *shm_zone, void *data)
 {
@@ -3282,7 +3282,7 @@ ngx_ssl_session_cache_init(ngx_shm_zone_t *shm_zone, void *data)
  * OpenSSL's i2d_SSL_SESSION() and d2i_SSL_SESSION are slow,
  * so they are outside the code locked by shared pool mutex
  */
-
+// 创建session插入到红黑树和队列中
 static int
 ngx_ssl_new_session(ngx_ssl_conn_t *ssl_conn, ngx_ssl_session_t *sess)
 {
@@ -3422,7 +3422,7 @@ failed:
     return 0;
 }
 
-
+// 从红黑树中查找session
 static ngx_ssl_session_t *
 ngx_ssl_get_cached_session(ngx_ssl_conn_t *ssl_conn,
 #if OPENSSL_VERSION_NUMBER >= 0x10100003L
@@ -3524,7 +3524,7 @@ done:
     return sess;
 }
 
-
+// 从cache中删除多个session
 void
 ngx_ssl_remove_cached_session(SSL_CTX *ssl, ngx_ssl_session_t *sess)
 {
@@ -3533,7 +3533,7 @@ ngx_ssl_remove_cached_session(SSL_CTX *ssl, ngx_ssl_session_t *sess)
     ngx_ssl_remove_session(ssl, sess);
 }
 
-
+// 删除某个session
 static void
 ngx_ssl_remove_session(SSL_CTX *ssl, ngx_ssl_session_t *sess)
 {
@@ -3610,7 +3610,7 @@ done:
     ngx_shmtx_unlock(&shpool->mutex);
 }
 
-
+// 清理超时的session
 static void
 ngx_ssl_expire_sessions(ngx_ssl_session_cache_t *cache,
     ngx_slab_pool_t *shpool, ngx_uint_t n)
@@ -3650,7 +3650,7 @@ ngx_ssl_expire_sessions(ngx_ssl_session_cache_t *cache,
     }
 }
 
-
+// 红黑树插入函数句柄
 static void
 ngx_ssl_session_rbtree_insert_value(ngx_rbtree_node_t *temp,
     ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel)

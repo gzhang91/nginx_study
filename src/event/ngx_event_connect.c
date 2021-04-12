@@ -30,7 +30,7 @@ ngx_event_connect_peer(ngx_peer_connection_t *pc)
     ngx_socket_t       s;
     ngx_event_t       *rev, *wev;
     ngx_connection_t  *c;
-
+	// 获取一个连接的地址
     rc = pc->get(pc, pc->data);
     if (rc != NGX_OK) {
         return rc;
@@ -49,7 +49,7 @@ ngx_event_connect_peer(ngx_peer_connection_t *pc)
         return NGX_ERROR;
     }
 
-
+	// 获取一个连接，并与socket挂接
     c = ngx_get_connection(s, pc->log);
 
     if (c == NULL) {
@@ -64,6 +64,7 @@ ngx_event_connect_peer(ngx_peer_connection_t *pc)
     c->type = type;
 
     if (pc->rcvbuf) {
+    // 设置recv缓冲区大小
         if (setsockopt(s, SOL_SOCKET, SO_RCVBUF,
                        (const void *) &pc->rcvbuf, sizeof(int)) == -1)
         {
@@ -75,7 +76,7 @@ ngx_event_connect_peer(ngx_peer_connection_t *pc)
 
     if (pc->so_keepalive) {
         value = 1;
-
+	// 设置keepalive标记
         if (setsockopt(s, SOL_SOCKET, SO_KEEPALIVE,
                        (const void *) &value, sizeof(int))
             == -1)
@@ -84,7 +85,7 @@ ngx_event_connect_peer(ngx_peer_connection_t *pc)
                           "setsockopt(SO_KEEPALIVE) failed, ignored");
         }
     }
-
+	// 设置非阻塞
     if (ngx_nonblocking(s) == -1) {
         ngx_log_error(NGX_LOG_ALERT, pc->log, ngx_socket_errno,
                       ngx_nonblocking_n " failed");
@@ -148,7 +149,7 @@ ngx_event_connect_peer(ngx_peer_connection_t *pc)
         }
 
 #endif
-
+	// bind调用
         if (bind(s, pc->local->sockaddr, pc->local->socklen) == -1) {
             ngx_log_error(NGX_LOG_CRIT, pc->log, ngx_socket_errno,
                           "bind(%V) failed", &pc->local->name);
@@ -156,7 +157,7 @@ ngx_event_connect_peer(ngx_peer_connection_t *pc)
             goto failed;
         }
     }
-
+	// 如果是tcp，设置对应的回调函数
     if (type == SOCK_STREAM) {
         c->recv = ngx_recv;
         c->send = ngx_send;
@@ -176,6 +177,7 @@ ngx_event_connect_peer(ngx_peer_connection_t *pc)
         }
 
     } else { /* type == SOCK_DGRAM */
+    // 如果是udp，设置对应的回调函数
         c->recv = ngx_udp_recv;
         c->send = ngx_send;
         c->send_chain = ngx_udp_send_chain;
@@ -201,7 +203,7 @@ ngx_event_connect_peer(ngx_peer_connection_t *pc)
 
     ngx_log_debug3(NGX_LOG_DEBUG_EVENT, pc->log, 0,
                    "connect to %V, fd:%d #%uA", pc->name, s, c->number);
-
+	// 连接上游服务端
     rc = connect(s, pc->sockaddr, pc->socklen);
 
     if (rc == -1) {
@@ -296,7 +298,7 @@ ngx_event_connect_peer(ngx_peer_connection_t *pc)
 
         event = NGX_LEVEL_EVENT;
     }
-
+	// 添加读事件
     if (ngx_add_event(rev, NGX_READ_EVENT, event) != NGX_OK) {
         goto failed;
     }
@@ -328,7 +330,7 @@ failed:
 
 
 #if (NGX_HAVE_TRANSPARENT_PROXY)
-
+// 设置ip_transparent
 static ngx_int_t
 ngx_event_connect_set_transparent(ngx_peer_connection_t *pc, ngx_socket_t s)
 {
@@ -423,7 +425,7 @@ ngx_event_connect_set_transparent(ngx_peer_connection_t *pc, ngx_socket_t s)
 
 #endif
 
-
+// 一个默认的get函数
 ngx_int_t
 ngx_event_get_peer(ngx_peer_connection_t *pc, void *data)
 {

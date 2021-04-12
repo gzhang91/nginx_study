@@ -65,6 +65,7 @@
 
 
 struct ngx_ssl_s {
+	// SSL_CTX上下文指针
     SSL_CTX                    *ctx;
     ngx_log_t                  *log;
     size_t                      buffer_size;
@@ -72,25 +73,31 @@ struct ngx_ssl_s {
 
 
 struct ngx_ssl_connection_s {
+	// SSL 连接
     ngx_ssl_conn_t             *connection;
+    // SSL_CTX上下文
     SSL_CTX                    *session_ctx;
 
     ngx_int_t                   last;
     ngx_buf_t                  *buf;
     size_t                      buffer_size;
-
+	// connection回调句柄
     ngx_connection_handler_pt   handler;
-
+	// ssl session
     ngx_ssl_session_t          *session;
+    // session回调句柄
     ngx_connection_handler_pt   save_session;
-
+	// read event 回调句柄
     ngx_event_handler_pt        saved_read_handler;
+    // write event回调句柄
     ngx_event_handler_pt        saved_write_handler;
 
     u_char                      early_buf;
-
+	// handshaked标记
     unsigned                    handshaked:1;
+    // renegotiation协商标记
     unsigned                    renegotiation:1;
+    // buffer缓存标记
     unsigned                    buffer:1;
     unsigned                    no_wait_shutdown:1;
     unsigned                    no_send_shutdown:1;
@@ -107,17 +114,23 @@ struct ngx_ssl_connection_s {
 #define NGX_SSL_NO_BUILTIN_SCACHE    -4
 #define NGX_SSL_DFLT_BUILTIN_SCACHE  -5
 
-
+// SSL 最大的session 大小
 #define NGX_SSL_MAX_SESSION_SIZE  4096
 
 typedef struct ngx_ssl_sess_id_s  ngx_ssl_sess_id_t;
 
 struct ngx_ssl_sess_id_s {
+	// 红黑树节点
     ngx_rbtree_node_t           node;
+    // id名字
     u_char                     *id;
+    // id的长度
     size_t                      len;
+    // 
     u_char                     *session;
+    // 队列
     ngx_queue_t                 queue;
+    // 超时时间
     time_t                      expire;
 #if (NGX_PTR_SIZE == 8)
     void                       *stub;
@@ -125,10 +138,13 @@ struct ngx_ssl_sess_id_s {
 #endif
 };
 
-
+// session cache结构体
 typedef struct {
+	// 红黑树控制节点
     ngx_rbtree_t                session_rbtree;
+    // 红黑树末节点
     ngx_rbtree_node_t           sentinel;
+    // 超时队列
     ngx_queue_t                 expire_queue;
 } ngx_ssl_session_cache_t;
 
@@ -204,9 +220,12 @@ void ngx_ssl_remove_cached_session(SSL_CTX *ssl, ngx_ssl_session_t *sess);
 ngx_int_t ngx_ssl_set_session(ngx_connection_t *c, ngx_ssl_session_t *session);
 ngx_ssl_session_t *ngx_ssl_get_session(ngx_connection_t *c);
 ngx_ssl_session_t *ngx_ssl_get0_session(ngx_connection_t *c);
+// free session
 #define ngx_ssl_free_session        SSL_SESSION_free
+// 获取ssl connection
 #define ngx_ssl_get_connection(ssl_conn)                                      \
     SSL_get_ex_data(ssl_conn, ngx_ssl_connection_index)
+// 获取ssl ctx
 #define ngx_ssl_get_server_conf(ssl_ctx)                                      \
     SSL_CTX_get_ex_data(ssl_ctx, ngx_ssl_server_conf_index)
 

@@ -13,7 +13,7 @@
 static ngx_int_t ngx_disable_accept_events(ngx_cycle_t *cycle, ngx_uint_t all);
 static void ngx_close_accepted_connection(ngx_connection_t *c);
 
-
+// 本函数是在ngx_event_process_init中设置，在ngx_epoll_process_events中调用
 void
 ngx_event_accept(ngx_event_t *ev)
 {
@@ -30,15 +30,16 @@ ngx_event_accept(ngx_event_t *ev)
 #if (NGX_HAVE_ACCEPT4)
     static ngx_uint_t  use_accept4 = 1;
 #endif
-
+	// 先判断本事件是否已经超时处理了
     if (ev->timedout) {
+    	// 设置accept事件
         if (ngx_enable_accept_events((ngx_cycle_t *) ngx_cycle) != NGX_OK) {
             return;
         }
-
+		// 清除timedout标志
         ev->timedout = 0;
     }
-
+	// 获取event_core_module的地址
     ecf = ngx_event_get_conf(ngx_cycle->conf_ctx, ngx_event_core_module);
 
     if (!(ngx_event_flags & NGX_USE_KQUEUE_EVENT)) {
@@ -54,7 +55,7 @@ ngx_event_accept(ngx_event_t *ev)
 
     do {
         socklen = sizeof(ngx_sockaddr_t);
-
+		// 调用accept函数
 #if (NGX_HAVE_ACCEPT4)
         if (use_accept4) {
             s = accept4(lc->fd, &sa.sockaddr, &socklen, SOCK_NONBLOCK);
@@ -105,14 +106,15 @@ ngx_event_accept(ngx_event_t *ev)
                     continue;
                 }
             }
-
+			// 如果是文件描述符不够用的错误
             if (err == NGX_EMFILE || err == NGX_ENFILE) {
+            	// 禁用accept events
                 if (ngx_disable_accept_events((ngx_cycle_t *) ngx_cycle, 1)
                     != NGX_OK)
                 {
                     return;
                 }
-
+				// 如果存在accpet mutex
                 if (ngx_use_accept_mutex) {
                     if (ngx_accept_mutex_held) {
                         ngx_shmtx_unlock(&ngx_accept_mutex);
@@ -122,6 +124,7 @@ ngx_event_accept(ngx_event_t *ev)
                     ngx_accept_disabled = 1;
 
                 } else {
+                // 增加一个延迟定时器
                     ngx_add_timer(ev, ecf->accept_mutex_delay);
                 }
             }
@@ -132,10 +135,10 @@ ngx_event_accept(ngx_event_t *ev)
 #if (NGX_STAT_STUB)
         (void) ngx_atomic_fetch_add(ngx_stat_accepted, 1);
 #endif
-
+		// 更新accept disabled标志值
         ngx_accept_disabled = ngx_cycle->connection_n / 8
                               - ngx_cycle->free_connection_n;
-
+		// 获取一个空闲的链接
         c = ngx_get_connection(s, ev->log);
 
         if (c == NULL) {
@@ -178,7 +181,7 @@ ngx_event_accept(ngx_event_t *ev)
         }
 
         /* set a blocking mode for iocp and non-blocking mode for others */
-
+		// iocp是阻塞模式，其他为非阻塞模式
         if (ngx_inherited_nonblocking) {
             if (ngx_event_flags & NGX_USE_IOCP_EVENT) {
                 if (ngx_blocking(s) == -1) {
@@ -225,7 +228,7 @@ ngx_event_accept(ngx_event_t *ev)
 #endif
         }
 #endif
-
+		// 得到read event和write event
         rev = c->read;
         wev = c->write;
 
@@ -304,7 +307,7 @@ ngx_event_accept(ngx_event_t *ev)
 
         log->data = NULL;
         log->handler = NULL;
-
+		// 调用handler回调函数
         ls->handler(c);
 
         if (ngx_event_flags & NGX_USE_KQUEUE_EVENT) {
@@ -353,7 +356,7 @@ ngx_trylock_accept_mutex(ngx_cycle_t *cycle)
     return NGX_OK;
 }
 
-
+// 启用cycle中全部监听套接字的READ EVENT(也就是accept)
 ngx_int_t
 ngx_enable_accept_events(ngx_cycle_t *cycle)
 {
@@ -378,7 +381,7 @@ ngx_enable_accept_events(ngx_cycle_t *cycle)
     return NGX_OK;
 }
 
-
+// 禁用cycle中全部监听套接字的READ EVENT(也就是accept)
 static ngx_int_t
 ngx_disable_accept_events(ngx_cycle_t *cycle, ngx_uint_t all)
 {
@@ -418,22 +421,22 @@ ngx_disable_accept_events(ngx_cycle_t *cycle, ngx_uint_t all)
     return NGX_OK;
 }
 
-
+// 关闭accept的connection
 static void
 ngx_close_accepted_connection(ngx_connection_t *c)
 {
     ngx_socket_t  fd;
-
+	// 释放c连接
     ngx_free_connection(c);
 
     fd = c->fd;
     c->fd = (ngx_socket_t) -1;
-
+	// 关闭fd关联
     if (ngx_close_socket(fd) == -1) {
         ngx_log_error(NGX_LOG_ALERT, c->log, ngx_socket_errno,
                       ngx_close_socket_n " failed");
     }
-
+	// 如果c->pool存在是否内存池
     if (c->pool) {
         ngx_destroy_pool(c->pool);
     }
